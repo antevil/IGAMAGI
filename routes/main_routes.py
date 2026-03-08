@@ -199,7 +199,7 @@ def ensure_sentence_cache(doc_id: int, page_no: int):
 def index():
     con = db.connect()
     docs = con.execute(
-        "SELECT id, filename, num_pages FROM documents ORDER BY id DESC"
+        "SELECT id, filename FROM documents ORDER BY id DESC"
     ).fetchall()
     con.close()
     return render_template("index.html", docs=docs)
