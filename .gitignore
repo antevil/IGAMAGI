@@ -2,8 +2,4 @@
 __pycache__/
 *.pyc
 instance/
-*.sqlite3
-*.db
-storage/
 .env
-.DS_Store
