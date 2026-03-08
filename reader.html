@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="ja">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Reader UI Core - Work Order 02</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #0f1620;
+      --panel2: #0c121a;
+      --text: #e6edf3;
+      --muted: #9aa7b2;
+      --border: rgba(255, 255, 255, .08);
+      --current: rgba(120, 180, 255, .18);
+      --currentBorder: rgba(120, 180, 255, .45);
+      --centerLine: rgba(255, 255, 255, .14);
+      --chip: rgba(255, 255, 255, .06);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    /* Layout */
+    .app {
+      height: 100vh;
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 0;
+    }
+
+    /* LEFT PANE (scroll container) */
+    .left {
+      position: relative;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      overflow: auto;
+      /* ★左だけスクロール */
+    }
+
+    /* RIGHT PANE (sticky area) */
+    .right {
+      background: var(--panel2);
+      padding: 16px;
+      overflow: hidden;
+    }
+
+    .rightSticky {
+      position: sticky;
+      /* ★右は固定/sticky */
+      top: 0;
+      height: calc(100vh - 32px);
+      /* rightのpadding(16*2)を差し引いた見た目調整 */
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* Center line (left-pane reference) */
+    .center-line {
+      pointer-events: none;
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 50%;
+      height: 1px;
+      background: var(--centerLine);
+      z-index: 10;
+    }
+
+    /* Sticky header (left) */
+    .sticky {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      background: linear-gradient(to bottom, rgba(15, 22, 32, .98), rgba(15, 22, 32, .80));
+      border-bottom: 1px solid var(--border);
+      padding: 10px 12px;
+      font-size: 12px;
+      color: var(--muted);
+      backdrop-filter: blur(6px);
+    }
+
+    .sticky b {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    /* Units list */
+    .units {
+      padding: 12px 12px 40vh;
+      margin: 0;
+    }
+
+    .unit {
+      display: block;
+      padding: 10px 12px;
+      margin: 0 0 8px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, .03);
+      line-height: 1.35;
+    }
+
+    .unit-meta {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .unit-en {
+      font-size: 14px;
+      line-height: 1.4;
+      margin-bottom: 8px;
+    }
+
+    .unit-ja {
+      font-size: 13px;
+      line-height: 1.45;
+      color: rgba(230, 237, 243, .78);
+      border-top: 1px dashed var(--border);
+      padding-top: 8px;
+    }
+
+    .chip {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: var(--chip);
+      border: 1px solid var(--border);
+      font-size: 11px;
+    }
+
+    .unit.current {
+      background: var(--current);
+      border-color: var(--currentBorder);
+      outline: 1px solid rgba(120, 180, 255, .2);
+    }
+
+    /* Right panel cards */
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, .03);
+      padding: 12px;
+    }
+
+    .card h3 {
+      margin: 0 0 8px;
+      font-size: 14px;
+      color: var(--text);
+      font-weight: 650;
+      letter-spacing: .2px;
+    }
+
+    .kv {
+      display: grid;
+      grid-template-columns: 90px 1fr;
+      gap: 6px 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .kv .k {
+      color: rgba(230, 237, 243, .8);
+    }
+
+    .snippet {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 12px;
+      border: 1px dashed var(--border);
+      background: rgba(0, 0, 0, .15);
+      color: rgba(230, 237, 243, .85);
+      font-size: 13px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      overflow: auto;
+      max-height: 120px;
+    }
+
+    /* ===== Zoom-ready container (IMPORTANT) =====
+       後続実装で画像/canvasを差し替える前提の枠
+       id/classは固定（契約）
+    */
+    #figureViewport {
+      flex: 1;
+      /* 右ペイン内で伸びる */
+      min-height: 260px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: rgba(0, 0, 0, .20);
+      position: relative;
+      overflow: hidden;
+      /* ★将来のパン/ズームでも枠からはみ出さない */
+    }
+
+    #figureViewportInner {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      color: rgba(230, 237, 243, .7);
+      text-align: center;
+      font-size: 13px;
+      user-select: none;
+    }
+
+    .hint {
+      color: rgba(154, 167, 178, .9);
+      font-size: 12px;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <!-- LEFT -->
+    <aside class="left" id="leftPane">
+      <div class="center-line" aria-hidden="true"></div>
+
+      <div class="sticky">
+        current: <b id="currentLabel">-</b>
+        <span style="margin-left:10px;">(debounce 0.3s / leftPane center)</span>
+      </div>
+
+      <div class="units" id="unitsRoot"></div>
+    </aside>
+
+    <!-- RIGHT -->
+    <main class="right">
+      <div class="rightSticky">
+        <section class="card">
+          <h3>Current Summary（仮）</h3>
+          <div class="kv">
+            <div class="k">unit</div>
+            <div id="rUnitId">-</div>
+            <div class="k">index</div>
+            <div id="rUnitIndex">-</div>
+            <div class="k">page</div>
+            <div id="rPage">-</div>
+            <div class="k">figure ref</div>
+            <div id="rFigureRef">-</div>
+          </div>
+          <div class="snippet" id="rSnippet">-</div>
+          <div class="hint">※ここは将来、翻訳・references抽出結果を差し込みます（今はプレースホルダ）。</div>
+        </section>
+
+        <section class="card" style="display:flex; flex-direction:column; gap:10px;">
+          <h3>Figure Viewport（Zoom-ready placeholder）</h3>
+
+          <!-- ★ズーム前提のDOM枠：id/class固定 -->
+          <div id="figureViewport" class="figure-viewport">
+            <div id="figureViewportInner" class="figure-viewport__inner">
+              <div>
+                <div style="font-size:14px; font-weight:650; color:rgba(230,237,243,.9);">
+                  ここに図（image/canvas）を差し替え
+                </div>
+                <div class="hint">
+                  予定：wheel/pinch/drag zoom（未実装）<br />
+                  いまは current に追従して “ダミー図参照” を表示するだけ
+                </div>
+                <div class="hint" id="rFigureStatus" style="margin-top:10px;">-</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="hint">
+            Contract: <code>#figureViewport</code>, <code>#figureViewportInner</code> は後続実装で直接参照します（変更しない）。
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    /**
+     * 仮units（固定配列）
+     * - 将来: DB/API から注入
+     */
+    const units = Array.from({ length: 120 }, (_, i) => ({
+      id: "u" + (i + 1),
+      index: i,
+      page: Math.floor(i / 8) + 1,
+      text: "Unit " + (i + 1) + " sample text",
+      translation: "（仮訳）Unit " + (i + 1) + " の日本語訳プレースホルダです。", // ★追加（ダミー）
+      figureRef: (i % 6 === 0) ? "FIG-" + (i + 1) : null
+    }));
+
+    // DOM
+    const leftPane = document.getElementById("leftPane");
+    const unitsRoot = document.getElementById("unitsRoot");
+    const currentLabel = document.getElementById("currentLabel");
+
+    // Right pane fields
+    const rUnitId = document.getElementById("rUnitId");
+    const rUnitIndex = document.getElementById("rUnitIndex");
+    const rPage = document.getElementById("rPage");
+    const rFigureRef = document.getElementById("rFigureRef");
+    const rSnippet = document.getElementById("rSnippet");
+    const rFigureStatus = document.getElementById("rFigureStatus");
+
+    // Cache
+    let unitEls = [];
+    let currentIndex = -1;
+
+    function escapeHtml(s) {
+      return String(s)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function renderUnits() {
+      const frag = document.createDocumentFragment();
+      for (const u of units) {
+        const el = document.createElement("div");
+        el.className = "unit";
+        el.dataset.unitId = u.id;
+        el.dataset.unitIndex = String(u.index);
+
+        el.innerHTML = `
+          <div class="meta">
+            <span class="chip">#${u.id}</span>
+            <span class="chip">p.${u.page}</span>
+            ${u.figureRef ? `<span class="chip">ref:${escapeHtml(u.figureRef)}</span>` : `<span class="chip">ref:-</span>`}
+          </div>
+          <div class="body">${escapeHtml(u.text)}</div>
+          <div class="unit-ja js-translation">${escapeHtml(u.translation ?? "")}</div>
+        `;
+        frag.appendChild(el);
+      }
+      unitsRoot.appendChild(frag);
+      unitEls = Array.from(unitsRoot.querySelectorAll(".unit"));
+    }
+
+    /**
+     * current判定（左ペイン中央基準）
+     * - Order01の中央基準・走査方式を維持
+     */
+    function getCurrentUnitIndex() {
+      const paneRect = leftPane.getBoundingClientRect();
+      const paneCenterY = paneRect.top + paneRect.height / 2;
+
+      let bestIdx = 0;
+      let bestDist = Infinity;
+
+      for (let i = 0; i < unitEls.length; i++) {
+        const rect = unitEls[i].getBoundingClientRect();
+        const centerY = rect.top + rect.height / 2;
+        const dist = Math.abs(centerY - paneCenterY);
+
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestIdx = i;
+        }
+      }
+      return bestIdx;
+    }
+
+    /**
+     * 単一入口：currentが変わった時の処理はここだけ
+     * - 右ペイン更新
+     * - 通知経路（CustomEvent）もここで発火
+     */
+    function onCurrentChange(unit, index) {
+      // Left label
+      currentLabel.textContent = `${unit.id} (p.${unit.page})`;
+
+      // Right summary (placeholder)
+      rUnitId.textContent = unit.id;
+      rUnitIndex.textContent = String(index);
+      rPage.textContent = String(unit.page);
+      rFigureRef.textContent = unit.figureRef ?? "-";
+      rSnippet.textContent = unit.text.slice(0, 140) + (unit.text.length > 140 ? "…" : "");
+
+      // Zoom-ready viewport placeholder message
+      rFigureStatus.textContent = unit.figureRef
+        ? `dummy: show ${unit.figureRef} here`
+        : "dummy: (no figure ref)";
+
+      // Notify (CustomEvent)
+      window.dispatchEvent(new CustomEvent("currentchange", {
+        detail: { unit, index }
+      }));
+    }
+
+    function setCurrentIndex(nextIdx) {
+      if (nextIdx === currentIndex) return;
+
+      if (currentIndex >= 0) unitEls[currentIndex].classList.remove("current");
+      currentIndex = nextIdx;
+      unitEls[currentIndex].classList.add("current");
+
+      const unit = units[currentIndex];
+      onCurrentChange(unit, currentIndex);
+    }
+
+    function debounce(fn, delayMs) {
+      let timer = null;
+      return function (...args) {
+        if (timer) window.clearTimeout(timer);
+        timer = window.setTimeout(() => fn.apply(this, args), delayMs);
+      };
+    }
+
+    const updateCurrentDebounced = debounce(() => {
+      window.requestAnimationFrame(() => {
+        const idx = getCurrentUnitIndex();
+        setCurrentIndex(idx);
+      });
+    }, 300);
+
+    // --- init ---
+    renderUnits();
+    setCurrentIndex(getCurrentUnitIndex());
+
+    // ★重要：左ペインがスクロールコンテナ
+    leftPane.addEventListener("scroll", updateCurrentDebounced, { passive: true });
+    window.addEventListener("resize", updateCurrentDebounced, { passive: true });
+
+    /**
+     * 例：別コンポーネントが追従したい場合はこれを購読できる
+     * window.addEventListener("currentchange", (e) => console.log(e.detail))
+     */
+  </script>
+</body>
+
+</html>
