@@ -1,50 +1,40 @@
 from __future__ import annotations
 
-import os
-from dataclasses import dataclass
-from typing import Optional
-
 import requests
 
 
-@dataclass
-class DeepLConfig:
-    auth_key: str
-    base_url: str  # https://api-free.deepl.com or https://api.deepl.com
-    source_lang: str = "EN"
-    target_lang: str = "JA"
-
-
 class DeepLTranslator:
-    def __init__(self, cfg: DeepLConfig):
-        self.cfg = cfg
+    def __init__(self, auth_key: str, base_url: str) -> None:
+        self.auth_key = auth_key
+        self.base_url = base_url.rstrip("/")
 
-    def translate_text(self, text: str) -> str:
-        url = self.cfg.base_url.rstrip("/") + "/v2/translate"
+    @property
+    def enabled(self) -> bool:
+        return bool(self.auth_key)
 
-        headers = {
-            "Authorization": f"DeepL-Auth-Key {self.cfg.auth_key}",
-        }
+    def translate_text(self, text: str, target_lang: str = "JA") -> str:
+        if not self.enabled:
+            return ""
 
-        data = {
-            "text": text,
-            "source_lang": self.cfg.source_lang,
-            "target_lang": self.cfg.target_lang,
-        }
+        url = f"{self.base_url}/v2/translate"
+        response = requests.post(
+            url,
+            headers={"Authorization": f"DeepL-Auth-Key {self.auth_key}"},
+            data={
+                "text": text,
+                "target_lang": target_lang,
+            },
+            timeout=60,
+        )
+        response.raise_for_status()
+        data = response.json()
+        return data["translations"][0]["text"]
 
-        resp = requests.post(url, headers=headers, data=data, timeout=30)
-        resp.raise_for_status()
-        j = resp.json()
-        return j["translations"][0]["text"]
-
-
-def load_translator() -> Optional[DeepLTranslator]:
-    key = os.environ.get("DEEPL_AUTH_KEY", "").strip()
-    if not key:
-        return None
-
-    base_url = os.environ.get("DEEPL_BASE_URL", "").strip()
-    if not base_url:
-        base_url = "https://api-free.deepl.com"
-
-    return DeepLTranslator(DeepLConfig(auth_key=key, base_url=base_url))
+    def translate_paragraphs(self, paragraphs: list[str]) -> list[str]:
+        results = []
+        for p in paragraphs:
+            try:
+                results.append(self.translate_text(p))
+            except Exception:
+                results.append("")
+        return results
