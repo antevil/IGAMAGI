@@ -65,7 +65,52 @@ def upload_pdf():
     )
 
     flash(f"PDFを取り込みました。抽出行数: {len(lines)}")
-    return redirect(url_for("main.reader", doc_id=doc_id))
+    return redirect(url_for("main.setup", doc_id=doc_id))
+
+
+@main_bp.get("/docs/<int:doc_id>/setup")
+def setup(doc_id: int):
+    document = db.fetch_one("SELECT * FROM documents WHERE id = ?", (doc_id,))
+    if document is None:
+        flash("ドキュメントが見つかりません。")
+        return redirect(url_for("main.index"))
+
+    pages = db.fetch_all(
+        """
+        SELECT page_no, COUNT(*) AS line_count
+        FROM lines
+        WHERE doc_id = ?
+        GROUP BY page_no
+        ORDER BY page_no
+        """,
+        (doc_id,),
+    )
+    paragraphs = db.fetch_all(
+        """
+        SELECT *
+        FROM paragraphs
+        WHERE doc_id = ?
+        ORDER BY order_index, id
+        """,
+        (doc_id,),
+    )
+    figures = db.fetch_all(
+        """
+        SELECT *
+        FROM figures
+        WHERE doc_id = ?
+        ORDER BY page_no, id
+        """,
+        (doc_id,),
+    )
+
+    return render_template(
+        "setup.html",
+        document=document,
+        pages=pages,
+        paragraphs=paragraphs,
+        figures=figures,
+    )
 
 
 @main_bp.get("/docs/<int:doc_id>/reader")
@@ -75,22 +120,28 @@ def reader(doc_id: int):
         flash("ドキュメントが見つかりません。")
         return redirect(url_for("main.index"))
 
-    pages = db.fetch_all(
-        "SELECT page_no, COUNT(*) AS line_count FROM lines WHERE doc_id = ? GROUP BY page_no ORDER BY page_no",
-        (doc_id,),
-    )
     paragraphs = db.fetch_all(
-        "SELECT * FROM paragraphs WHERE doc_id = ? ORDER BY order_index",
+        """
+        SELECT *
+        FROM paragraphs
+        WHERE doc_id = ?
+        ORDER BY order_index, id
+        """,
         (doc_id,),
     )
     figures = db.fetch_all(
-        "SELECT * FROM figures WHERE doc_id = ? ORDER BY page_no, id",
+        """
+        SELECT *
+        FROM figures
+        WHERE doc_id = ?
+        ORDER BY page_no, id
+        """,
         (doc_id,),
     )
+
     return render_template(
         "reader.html",
         document=document,
-        pages=pages,
         paragraphs=paragraphs,
         figures=figures,
     )

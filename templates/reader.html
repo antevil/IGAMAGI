@@ -13,126 +13,41 @@
       <div>
         <a href="{{ url_for('main.index') }}" class="text-sm text-indigo-400 hover:text-indigo-300">← 戻る</a>
         <h1 class="text-xl font-semibold mt-1">{{ document.title or document.filename }}</h1>
-        <p class="text-sm text-zinc-400">doc_id={{ document.id }}</p>
+        <p class="text-sm text-zinc-400">Reader / doc_id={{ document.id }}</p>
       </div>
-      <div class="flex gap-2 items-center">
-        <select id="pageSelect" class="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm">
-          {% for page in pages %}
-            <option value="{{ page.page_no }}">Page {{ page.page_no + 1 }}</option>
-          {% endfor %}
-        </select>
-        <button id="reloadBtn" class="rounded-lg bg-zinc-800 px-3 py-2 text-sm hover:bg-zinc-700">再読込</button>
+      <div class="flex gap-2 items-center flex-wrap">
+        <a href="{{ url_for('main.setup', doc_id=document.id) }}"
+           class="rounded-lg bg-zinc-800 px-3 py-2 text-sm hover:bg-zinc-700">
+          Setupへ戻る
+        </a>
+        <button id="loadParagraphsBtn" class="rounded-lg bg-zinc-800 px-3 py-2 text-sm hover:bg-zinc-700">左ペイン更新</button>
+        <button id="loadFiguresBtn" class="rounded-lg bg-zinc-800 px-3 py-2 text-sm hover:bg-zinc-700">右ペイン更新</button>
       </div>
     </div>
   </header>
 
   <main class="max-w-[1800px] mx-auto px-4 py-4 grid grid-cols-12 gap-4">
-    <section class="col-span-12 xl:col-span-4 space-y-4">
-      <div class="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4 space-y-3">
-        <h2 class="font-semibold">文書メタ</h2>
-        <div class="space-y-2">
-          <label class="block text-sm text-zinc-300">タイトル</label>
-          <input id="titleInput" value="{{ document.title or '' }}" class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm">
-          <button id="saveTitleBtn" class="rounded-lg bg-indigo-600 px-3 py-2 text-sm hover:bg-indigo-500">タイトル保存</button>
-        </div>
-      </div>
-
-      <div class="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4 space-y-3">
-        <div class="flex items-center justify-between">
-          <h2 class="font-semibold">段落作成</h2>
-          <span id="selectionStatus" class="text-xs text-zinc-400">開始行と終了行を選択</span>
-        </div>
-        <div class="grid grid-cols-2 gap-3 text-sm">
+    <section class="col-span-12 xl:col-span-7 space-y-4">
+      <div class="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
+        <div class="flex items-center justify-between mb-3">
           <div>
-            <label class="block text-zinc-300 mb-1">start_line_id</label>
-            <input id="startLineId" readonly class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2">
-          </div>
-          <div>
-            <label class="block text-zinc-300 mb-1">end_line_id</label>
-            <input id="endLineId" readonly class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2">
-          </div>
-          <div>
-            <label class="block text-zinc-300 mb-1">order_index</label>
-            <input id="orderIndex" type="number" value="{{ paragraphs|length }}" class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2">
-          </div>
-          <div>
-            <label class="block text-zinc-300 mb-1">unit_type</label>
-            <select id="unitType" class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2">
-              <option value="title">title</option>
-              <option value="abstract">abstract</option>
-              <option value="body" selected>body</option>
-            </select>
+            <h2 class="font-semibold">左ペイン: 段落と対訳</h2>
+            <p class="text-sm text-zinc-400">paragraph ごとに文を読み込み、英語と日本語を交互に表示</p>
           </div>
         </div>
-        <div>
-          <label class="block text-sm text-zinc-300 mb-1">paragraph title</label>
-          <input id="headingText" class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm" placeholder="任意">
-        </div>
-        <div class="flex gap-2 flex-wrap">
-          <button id="saveParagraphBtn" class="rounded-lg bg-emerald-600 px-3 py-2 text-sm hover:bg-emerald-500">段落保存</button>
-          <button id="clearSelectionBtn" class="rounded-lg bg-zinc-800 px-3 py-2 text-sm hover:bg-zinc-700">選択クリア</button>
-        </div>
-      </div>
-
-      <div class="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4 space-y-3">
-        <div class="flex items-center justify-between">
-          <h2 class="font-semibold">PDFビュー</h2>
-          <span class="text-xs text-zinc-400">行クリックで段落範囲指定</span>
-        </div>
-        <div id="pdfPane" class="space-y-3">
-          <div class="pdf-wrap rounded-xl overflow-hidden border border-zinc-800 bg-black">
-            <img id="pageImage" class="w-full block" alt="page preview">
-            <div id="lineOverlay" class="pdf-overlay"></div>
-            <div id="figureOverlay" class="pdf-overlay"></div>
-          </div>
-        </div>
+        <div id="paragraphList" class="space-y-3 max-h-[82vh] overflow-auto"></div>
       </div>
     </section>
 
-    <section class="col-span-12 xl:col-span-4 space-y-4">
+    <section class="col-span-12 xl:col-span-5 space-y-4">
       <div class="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
         <div class="flex items-center justify-between mb-3">
-          <h2 class="font-semibold">左ペイン: 段落と対訳</h2>
-          <button id="loadParagraphsBtn" class="rounded-lg bg-zinc-800 px-3 py-2 text-sm hover:bg-zinc-700">更新</button>
-        </div>
-        <div id="paragraphList" class="space-y-3 max-h-[80vh] overflow-auto"></div>
-      </div>
-    </section>
-
-    <section class="col-span-12 xl:col-span-4 space-y-4">
-      <div class="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4 space-y-3">
-        <h2 class="font-semibold">Figure登録</h2>
-        <p class="text-sm text-zinc-400">Shift+ドラッグで図、Alt+ドラッグでcaption範囲を指定します。</p>
-        <div class="grid grid-cols-2 gap-3 text-sm">
           <div>
-            <label class="block text-zinc-300 mb-1">fig_no</label>
-            <input id="figNoInput" class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2" placeholder="Figure 1">
-          </div>
-          <div>
-            <label class="block text-zinc-300 mb-1">page</label>
-            <input id="figurePageNo" readonly class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2">
+            <h2 class="font-semibold">右ペイン: 図表とcaption</h2>
+            <p class="text-sm text-zinc-400">今の段階では手動スクロールで閲覧</p>
           </div>
         </div>
-        <div>
-          <label class="block text-zinc-300 mb-1 text-sm">caption text</label>
-          <textarea id="captionTextInput" rows="3" class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"></textarea>
-        </div>
-        <div class="text-xs text-zinc-400 space-y-1">
-          <div id="imageBboxText">image_bbox: 未選択</div>
-          <div id="captionBboxText">caption_bbox: 未選択</div>
-        </div>
-        <div class="flex gap-2">
-          <button id="saveFigureBtn" class="rounded-lg bg-fuchsia-600 px-3 py-2 text-sm hover:bg-fuchsia-500">Figure保存</button>
-          <button id="clearFigureSelectionBtn" class="rounded-lg bg-zinc-800 px-3 py-2 text-sm hover:bg-zinc-700">bboxクリア</button>
-        </div>
-      </div>
-
-      <div class="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
-        <div class="flex items-center justify-between mb-3">
-          <h2 class="font-semibold">右ペイン: 図表とcaption</h2>
-          <button id="loadFiguresBtn" class="rounded-lg bg-zinc-800 px-3 py-2 text-sm hover:bg-zinc-700">更新</button>
-        </div>
-        <div id="figureList" class="space-y-4 max-h-[80vh] overflow-auto"></div>
+        <div id="figureList" class="space-y-4 max-h-[82vh] overflow-auto"></div>
       </div>
     </section>
   </main>
@@ -142,9 +57,9 @@
   <script>
     window.READER_BOOTSTRAP = {
       docId: {{ document.id }},
-      initialPageNo: {{ pages[0].page_no if pages else 0 }}
+      mode: "reader"
     };
   </script>
-  <script src="{{ url_for('static', filename='js/reader.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/reader_view.js') }}"></script>
 </body>
 </html>
