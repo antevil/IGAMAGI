@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+
+# virtualenv
+venv/
+
+# database
+instance/
+
+# uploaded files
+storage/
+
+# preview
+*.png
+*.jpg
+
+# OS
+.DS_Store
+Thumbs.db

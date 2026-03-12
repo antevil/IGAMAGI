@@ -152,13 +152,12 @@
 
   <div id="toast" class="fixed right-4 bottom-4 hidden rounded-xl bg-zinc-900 border border-zinc-700 px-4 py-3 text-sm shadow-2xl"></div>
 
-  <script>
-    window.READER_BOOTSTRAP = {
-      docId: {{ document.id }},
-      initialPageNo: {{ pages[0].page_no if pages else 0 }},
-      mode: "setup"
-    };
-  </script>
-  <script src="{{ url_for('static', filename='js/reader.js') }}"></script>
+<script>
+  window.READER_BOOTSTRAP = {
+    docId: {{ document.id }},
+    initialPageNo: {{ pages[0].page_no if pages else 0 }}
+  };
+</script>
+<script src="{{ url_for('static', filename='js/setup.js') }}"></script>
 </body>
 </html>
