@@ -1,60 +1,51 @@
 <!doctype html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>ArsTransferendiTextum</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IGAMAGI Reader</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-zinc-950 text-zinc-100 min-h-screen">
-  <div class="max-w-4xl mx-auto p-6">
-    <h1 class="text-2xl font-semibold">ArsTransferendiTextum</h1>
-    <p class="text-sm text-zinc-300 mt-2">
-      GROBID + DeepL + PyMuPDF
-    </p>
+  <main class="max-w-5xl mx-auto px-6 py-10 space-y-8">
+    <section class="space-y-3">
+      <h1 class="text-3xl font-semibold">IGAMAGI Reader</h1>
+      <p class="text-zinc-300">PDFを取り込み、段落を手動で確定し、文分割・翻訳・図表連携を行う半自動ビューアです。</p>
+    </section>
 
     {% with messages = get_flashed_messages() %}
       {% if messages %}
-        <div class="mt-4 space-y-2">
+        <section class="space-y-2">
           {% for m in messages %}
-            <div class="rounded-lg bg-rose-950/60 border border-rose-800 px-3 py-2 text-sm">{{ m }}</div>
+            <div class="rounded-xl border border-emerald-800 bg-emerald-950/40 px-4 py-3 text-sm">{{ m }}</div>
           {% endfor %}
-        </div>
+        </section>
       {% endif %}
     {% endwith %}
 
-    <div class="mt-6 rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-      <form action="/upload" method="post" enctype="multipart/form-data" class="flex flex-col gap-3">
-        <label class="text-sm text-zinc-200">PDFアップロード</label>
-        <input name="pdf" type="file" accept="application/pdf"
-               class="block w-full text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-zinc-800 file:px-4 file:py-2 file:text-zinc-100 hover:file:bg-zinc-700"/>
-        <button class="self-start rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium hover:bg-indigo-500">
-          アップロードして閲覧ページへ
-        </button>
+    <section class="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-6">
+      <form action="{{ url_for('main.upload_pdf') }}" method="post" enctype="multipart/form-data" class="space-y-4">
+        <div>
+          <label class="block text-sm text-zinc-300 mb-2">PDFファイル</label>
+          <input type="file" name="pdf" accept="application/pdf" class="block w-full text-sm text-zinc-200 file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-4 file:py-2 file:text-white hover:file:bg-indigo-500">
+        </div>
+        <button class="rounded-xl bg-indigo-600 px-5 py-3 font-medium hover:bg-indigo-500">アップロードして抽出開始</button>
       </form>
-    </div>
+    </section>
 
-    <div class="mt-8">
-      <h2 class="text-lg font-semibold">最近のドキュメント</h2>
-      <div class="mt-3 grid gap-3">
-        {% for d in docs %}
-          <a class="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4 hover:bg-zinc-900/50"
-             href="/doc/{{ d['id'] }}">
-            <div class="flex items-center justify-between gap-3">
-              <div class="min-w-0">
-                <div class="font-medium truncate">{{ d["filename"] }}</div>
-                <div class="text-xs text-zinc-400 mt-1">
-                  paragraphs: {{ d["num_paragraphs"] }} / figures: {{ d["num_figures"] }} / created: {{ d["created_at"] }}
-                </div>
-              </div>
-              <div class="text-xs text-zinc-300">Open →</div>
-            </div>
+    <section class="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-6">
+      <h2 class="text-xl font-semibold mb-4">既存ドキュメント</h2>
+      <div class="space-y-3">
+        {% for doc in docs %}
+          <a href="{{ url_for('main.reader', doc_id=doc.id) }}" class="block rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 hover:border-indigo-500">
+            <div class="font-medium">{{ doc.title or doc.filename }}</div>
+            <div class="text-sm text-zinc-400">ID: {{ doc.id }} / {{ doc.filename }}</div>
           </a>
         {% else %}
-          <div class="text-sm text-zinc-400">まだありません。</div>
+          <p class="text-zinc-400">まだドキュメントはありません。</p>
         {% endfor %}
       </div>
-    </div>
-  </div>
+    </section>
+  </main>
 </body>
 </html>

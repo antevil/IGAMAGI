@@ -2,25 +2,22 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from dotenv import load_dotenv
-
-load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent
 INSTANCE_DIR = BASE_DIR / "instance"
 STORAGE_DIR = BASE_DIR / "storage"
-
-PDF_DIR = STORAGE_DIR / "pdf"
-TEI_DIR = STORAGE_DIR / "tei"
-IMAGE_DIR = STORAGE_DIR / "images"
-TRANSLATION_DIR = STORAGE_DIR / "translations"
-
+PDF_DIR = STORAGE_DIR / "pdfs"
+FIGURE_DIR = STORAGE_DIR / "figures"
+PREVIEW_DIR = STORAGE_DIR / "previews"
 DB_PATH = INSTANCE_DIR / "app.db"
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret")
+SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-change-me")
 DEEPL_AUTH_KEY = os.environ.get("DEEPL_AUTH_KEY", "").strip()
 DEEPL_BASE_URL = os.environ.get("DEEPL_BASE_URL", "https://api-free.deepl.com").strip()
-GROBID_URL = os.environ.get("GROBID_URL", "http://localhost:8070").strip()
+DEEPL_TARGET_LANG = os.environ.get("DEEPL_TARGET_LANG", "JA")
+PREVIEW_DPI = int(os.environ.get("PREVIEW_DPI", "150"))
+MAX_CONTENT_LENGTH = int(os.environ.get("MAX_CONTENT_LENGTH", str(80 * 1024 * 1024)))
+ALLOWED_EXTENSIONS = {"pdf"}
 
-for p in [INSTANCE_DIR, STORAGE_DIR, PDF_DIR, TEI_DIR, IMAGE_DIR, TRANSLATION_DIR]:
-    p.mkdir(parents=True, exist_ok=True)
+for path in (INSTANCE_DIR, STORAGE_DIR, PDF_DIR, FIGURE_DIR, PREVIEW_DIR):
+    path.mkdir(parents=True, exist_ok=True)
