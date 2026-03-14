@@ -34,12 +34,28 @@ def get_pages(doc_id: int):
 
 @api_bp.get("/docs/<int:doc_id>/pages/<int:page_no>/lines")
 def get_page_lines(doc_id: int, page_no: int):
+    doc = db.fetch_one("SELECT * FROM documents WHERE id = ?", (doc_id,))
+    if doc is None:
+        abort(404)
+
     rows = db.fetch_all(
         "SELECT * FROM lines WHERE doc_id = ? AND page_no = ? ORDER BY line_no",
         (doc_id, page_no),
     )
-    return jsonify(rows)
 
+    pdf = fitz.open(doc["pdf_path"])
+    try:
+        page = pdf.load_page(page_no)
+        width = float(page.rect.width)
+        height = float(page.rect.height)
+    finally:
+        pdf.close()
+
+    return jsonify({
+        "page_width": width,
+        "page_height": height,
+        "lines": rows,
+    })
 
 @api_bp.get("/docs/<int:doc_id>/pages/<int:page_no>/preview")
 def get_page_preview(doc_id: int, page_no: int):

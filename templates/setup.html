@@ -158,6 +158,9 @@
     initialPageNo: {{ pages[0].page_no if pages else 0 }}
   };
 </script>
+<script src="{{ url_for('static', filename='js/state.js') }}"></script>
+<script src="{{ url_for('static', filename='js/api.js') }}"></script>
+<script src="{{ url_for('static', filename='js/geometry.js') }}"></script>
 <script src="{{ url_for('static', filename='js/setup.js') }}"></script>
 </body>
 </html>
