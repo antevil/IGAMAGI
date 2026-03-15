@@ -8,24 +8,37 @@
     lines: [],
     pageNaturalWidth: 1,
     pageNaturalHeight: 1,
+
     startLineId: null,
     endLineId: null,
+
     imageBBox: null,
     captionBBox: null,
     drawing: null,
+
     paragraphCache: [],
     figureCache: [],
+
+    mode: "line", // "line" | "figure"
   };
 
   const $ = (id) => document.getElementById(id);
+
   const els = {
     pageSelect: $("pageSelect"),
     reloadBtn: $("reloadBtn"),
+
     titleInput: $("titleInput"),
     saveTitleBtn: $("saveTitleBtn"),
+
     pageImage: $("pageImage"),
     lineOverlay: $("lineOverlay"),
     figureOverlay: $("figureOverlay"),
+
+    lineModeBtn: $("lineModeBtn"),
+    figureModeBtn: $("figureModeBtn"),
+    modeHint: $("modeHint"),
+
     startLineId: $("startLineId"),
     endLineId: $("endLineId"),
     orderIndex: $("orderIndex"),
@@ -36,6 +49,7 @@
     selectionStatus: $("selectionStatus"),
     paragraphList: $("paragraphList"),
     loadParagraphsBtn: $("loadParagraphsBtn"),
+
     figNoInput: $("figNoInput"),
     figurePageNo: $("figurePageNo"),
     captionTextInput: $("captionTextInput"),
@@ -45,11 +59,12 @@
     clearFigureSelectionBtn: $("clearFigureSelectionBtn"),
     figureList: $("figureList"),
     loadFiguresBtn: $("loadFiguresBtn"),
+
     toast: $("toast"),
   };
 
   window.debugState = state;
-window.debugEls = els;
+  window.debugEls = els;
 
   function showToast(message, isError = false) {
     if (!els.toast) return;
@@ -78,7 +93,7 @@ window.debugEls = els;
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;")
       .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
+      .replaceAll("'", "&#39;");
   }
 
   function syncOverlaySize() {
@@ -89,31 +104,61 @@ window.debugEls = els;
     els.figureOverlay.style.height = `${rect.height}px`;
   }
 
- function scaleX(x) {
-  const rect = els.pageImage.getBoundingClientRect();
-  return (x / state.pageNaturalWidth) * rect.width;
-}
+  function scaleX(x) {
+    const rect = els.pageImage.getBoundingClientRect();
+    return (x / state.pageNaturalWidth) * rect.width;
+  }
 
-function scaleY(y) {
-  const rect = els.pageImage.getBoundingClientRect();
-  return (y / state.pageNaturalHeight) * rect.height;
-}
+  function scaleY(y) {
+    const rect = els.pageImage.getBoundingClientRect();
+    return (y / state.pageNaturalHeight) * rect.height;
+  }
 
-function unscaleX(x) {
-  const rect = els.pageImage.getBoundingClientRect();
-  return (x / rect.width) * state.pageNaturalWidth;
-}
+  function unscaleX(x) {
+    const rect = els.pageImage.getBoundingClientRect();
+    return (x / rect.width) * state.pageNaturalWidth;
+  }
 
-function unscaleY(y) {
-  const rect = els.pageImage.getBoundingClientRect();
-  return (y / rect.height) * state.pageNaturalHeight;
-}
+  function unscaleY(y) {
+    const rect = els.pageImage.getBoundingClientRect();
+    return (y / rect.height) * state.pageNaturalHeight;
+  }
+
+  function setMode(mode) {
+    state.mode = mode;
+    applyMode();
+  }
+
+  function applyMode() {
+    const isLineMode = state.mode === "line";
+    const isFigureMode = state.mode === "figure";
+
+    if (els.lineOverlay) {
+      els.lineOverlay.style.pointerEvents = isLineMode ? "auto" : "none";
+      els.lineOverlay.style.zIndex = isLineMode ? "20" : "10";
+    }
+
+    if (els.figureOverlay) {
+      els.figureOverlay.style.pointerEvents = isFigureMode ? "auto" : "none";
+      els.figureOverlay.style.zIndex = isFigureMode ? "20" : "10";
+    }
+
+    els.lineModeBtn?.classList.toggle("is-active", isLineMode);
+    els.figureModeBtn?.classList.toggle("is-active", isFigureMode);
+
+    if (els.modeHint) {
+      els.modeHint.textContent = isLineMode
+        ? "現在: Line選択モード"
+        : "現在: Figure選択モード（Shift=図 / Alt=caption）";
+    }
+  }
 
   function updateSelectionFields() {
     if (els.startLineId) els.startLineId.value = state.startLineId ?? "";
     if (els.endLineId) els.endLineId.value = state.endLineId ?? "";
 
     if (!els.selectionStatus) return;
+
     if (!state.startLineId && !state.endLineId) {
       els.selectionStatus.textContent = "開始行と終了行を選択";
     } else if (state.startLineId && !state.endLineId) {
@@ -130,14 +175,19 @@ function unscaleY(y) {
 
   function isWithinSelectedRange(line) {
     if (!state.startLineId || !state.endLineId) return false;
+
     const start = state.lines.find((x) => x.id === state.startLineId);
     const end = state.lines.find((x) => x.id === state.endLineId);
+
     if (!start || !end || start.page_no !== end.page_no) return false;
+
     const [lo, hi] = [start.line_no, end.line_no].sort((a, b) => a - b);
     return line.line_no >= lo && line.line_no <= hi;
   }
 
   function renderLines() {
+    if (!els.lineOverlay) return;
+
     els.lineOverlay.innerHTML = "";
     const fragment = document.createDocumentFragment();
 
@@ -148,7 +198,11 @@ function unscaleY(y) {
 
       if (line.id === state.startLineId) div.classList.add("selected-start");
       if (line.id === state.endLineId) div.classList.add("selected-end");
-      if (isWithinSelectedRange(line) && line.id !== state.startLineId && line.id !== state.endLineId) {
+      if (
+        isWithinSelectedRange(line) &&
+        line.id !== state.startLineId &&
+        line.id !== state.endLineId
+      ) {
         div.classList.add("selected-between");
       }
 
@@ -157,7 +211,15 @@ function unscaleY(y) {
       div.style.width = `${Math.max(3, scaleX(line.x1) - scaleX(line.x0))}px`;
       div.style.height = `${Math.max(3, scaleY(line.y1) - scaleY(line.y0))}px`;
       div.title = `${line.line_no}: ${line.text}`;
-      div.addEventListener("click", () => selectLine(line));
+      div.style.pointerEvents = state.mode === "line" ? "auto" : "none";
+
+      div.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (state.mode !== "line") return;
+        selectLine(line);
+      });
+
       fragment.appendChild(div);
     }
 
@@ -172,6 +234,8 @@ function unscaleY(y) {
   }
 
   function renderFigureBoxes() {
+    if (!els.figureOverlay) return;
+
     els.figureOverlay.querySelectorAll(".draw-rect").forEach((el) => el.remove());
 
     if (state.imageBBox) {
@@ -191,11 +255,17 @@ function unscaleY(y) {
 
   function updateFigureTexts() {
     if (els.figurePageNo) els.figurePageNo.value = state.pageNo;
+
     if (els.imageBboxText) {
-      els.imageBboxText.textContent = `image_bbox: ${state.imageBBox ? JSON.stringify(state.imageBBox) : "未選択"}`;
+      els.imageBboxText.textContent = `image_bbox: ${
+        state.imageBBox ? JSON.stringify(state.imageBBox) : "未選択"
+      }`;
     }
+
     if (els.captionBboxText) {
-      els.captionBboxText.textContent = `caption_bbox: ${state.captionBBox ? JSON.stringify(state.captionBBox) : "未選択"}`;
+      els.captionBboxText.textContent = `caption_bbox: ${
+        state.captionBBox ? JSON.stringify(state.captionBBox) : "未選択"
+      }`;
     }
   }
 
@@ -211,6 +281,7 @@ function unscaleY(y) {
         state.startLineId = line.id;
       }
     }
+
     updateSelectionFields();
     renderLines();
   }
@@ -231,31 +302,38 @@ function unscaleY(y) {
   }
 
   async function loadPage(pageNo) {
-  state.pageNo = Number(pageNo);
+    state.pageNo = Number(pageNo);
 
-  els.pageImage.src = `/api/docs/${state.docId}/pages/${state.pageNo}/preview?ts=${Date.now()}`;
+    els.pageImage.src = `/api/docs/${state.docId}/pages/${state.pageNo}/preview?ts=${Date.now()}`;
 
-  els.pageImage.onload = async () => {
-    const payload = await fetchJSON(
-      `/api/docs/${state.docId}/pages/${state.pageNo}/lines`
-    );
+    els.pageImage.onload = async () => {
+      const payload = await fetchJSON(
+        `/api/docs/${state.docId}/pages/${state.pageNo}/lines`
+      );
 
-    state.pageNaturalWidth = payload.page_width || 1;
-    state.pageNaturalHeight = payload.page_height || 1;
-    state.lines = payload.lines || [];
+      state.pageNaturalWidth = payload.page_width || 1;
+      state.pageNaturalHeight = payload.page_height || 1;
+      state.lines = payload.lines || [];
 
-    syncOverlaySize();
-    renderLines();
-    renderFigureBoxes();
-    updateFigureTexts();
-  };
-}
+      syncOverlaySize();
+      renderLines();
+      renderFigureBoxes();
+      updateFigureTexts();
+      applyMode();
+    };
+  }
+
   async function saveTitle() {
     await fetchJSON(`/api/docs/${state.docId}/title`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: els.titleInput.value.trim() }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        title: els.titleInput.value.trim(),
+      }),
     });
+
     showToast("タイトルを保存しました");
   }
 
@@ -275,12 +353,22 @@ function unscaleY(y) {
 
     const result = await fetchJSON(`/api/docs/${state.docId}/paragraphs`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(payload),
     });
 
-    await fetchJSON(`/api/paragraphs/${result.paragraph_id}/split_sentences`, { method: "POST" });
-    const translateResult = await fetchJSON(`/api/paragraphs/${result.paragraph_id}/translate`, { method: "POST" });
+    await fetchJSON(`/api/paragraphs/${result.paragraph_id}/split_sentences`, {
+      method: "POST",
+    });
+
+    const translateResult = await fetchJSON(
+      `/api/paragraphs/${result.paragraph_id}/translate`,
+      {
+        method: "POST",
+      }
+    );
 
     if (!translateResult.deepl_enabled) {
       showToast("段落保存。DeepLキー未設定のため翻訳は空です");
@@ -295,19 +383,24 @@ function unscaleY(y) {
 
   function paragraphCard(paragraph) {
     const card = document.createElement("div");
-    card.className = "rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3";
+    card.className =
+      "rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3";
+
     card.innerHTML = `
       <div class="font-medium">#${paragraph.order_index} ${escapeHtml(paragraph.heading_text || "(no heading)")}</div>
-      <div class="text-xs text-zinc-400">${escapeHtml(paragraph.unit_type)} / p.${paragraph.page_no + 1} - ${paragraph.end_page_no + 1}</div>
-      <div class="text-sm leading-6 text-zinc-300 whitespace-pre-wrap">${escapeHtml(paragraph.raw_text || "")}</div>
+      <div class="text-sm text-zinc-400">${escapeHtml(paragraph.unit_type)} / p.${paragraph.page_no + 1} - ${paragraph.end_page_no + 1}</div>
+      <div class="text-sm whitespace-pre-wrap break-words">${escapeHtml(paragraph.raw_text || "")}</div>
     `;
+
     return card;
   }
 
   async function loadParagraphs() {
     state.paragraphCache = await fetchJSON(`/api/docs/${state.docId}/paragraphs`);
+
     if (!els.paragraphList) return;
     els.paragraphList.innerHTML = "";
+
     for (const p of state.paragraphCache) {
       els.paragraphList.appendChild(paragraphCard(p));
     }
@@ -315,24 +408,27 @@ function unscaleY(y) {
 
   function figureCard(figure) {
     const card = document.createElement("div");
-    card.className = "rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3";
+    card.className =
+      "rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3";
+
     const imgSrc = figure.image_path ? `/${figure.image_path}` : "";
 
     card.innerHTML = `
-      <div>
-        <div class="font-medium">${escapeHtml(figure.fig_no)}</div>
-        <div class="text-xs text-zinc-400">page ${figure.page_no + 1}</div>
-      </div>
-      ${imgSrc ? `<img src="${imgSrc}" alt="${escapeHtml(figure.fig_no)}" class="w-full rounded-lg border border-zinc-800 bg-white">` : ""}
-      <div class="text-sm leading-6 text-zinc-300 whitespace-pre-wrap">${escapeHtml(figure.caption_text || "")}</div>
+      <div class="font-medium">${escapeHtml(figure.fig_no)}</div>
+      <div class="text-sm text-zinc-400">page ${figure.page_no + 1}</div>
+      ${imgSrc ? `<img src="${imgSrc}" alt="${escapeHtml(figure.fig_no)}" class="max-h-48 rounded-lg border border-zinc-800">` : ""}
+      <div class="text-sm whitespace-pre-wrap break-words">${escapeHtml(figure.caption_text || "")}</div>
     `;
+
     return card;
   }
 
   async function loadFigures() {
     state.figureCache = await fetchJSON(`/api/docs/${state.docId}/figures`);
+
     if (!els.figureList) return;
     els.figureList.innerHTML = "";
+
     for (const fig of state.figureCache) {
       els.figureList.appendChild(figureCard(fig));
     }
@@ -354,7 +450,9 @@ function unscaleY(y) {
 
     await fetchJSON(`/api/docs/${state.docId}/figures`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(payload),
     });
 
@@ -366,8 +464,11 @@ function unscaleY(y) {
   }
 
   function startDraw(event) {
+    if (state.mode !== "figure") return;
     if (!(event.shiftKey || event.altKey)) return;
+
     event.preventDefault();
+    event.stopPropagation();
 
     const rect = els.figureOverlay.getBoundingClientRect();
     const x = event.clientX - rect.left;
@@ -385,6 +486,7 @@ function unscaleY(y) {
   }
 
   function moveDraw(event) {
+    if (state.mode !== "figure") return;
     if (!state.drawing) return;
 
     const rect = els.figureOverlay.getBoundingClientRect();
@@ -395,18 +497,22 @@ function unscaleY(y) {
 
     const previewRect = document.createElement("div");
     previewRect.className = `draw-rect${state.drawing.mode === "caption" ? " caption" : ""}`;
+
     const x0 = Math.min(state.drawing.x0, state.drawing.x1);
     const y0 = Math.min(state.drawing.y0, state.drawing.y1);
     const x1 = Math.max(state.drawing.x0, state.drawing.x1);
     const y1 = Math.max(state.drawing.y0, state.drawing.y1);
+
     previewRect.style.left = `${x0}px`;
     previewRect.style.top = `${y0}px`;
     previewRect.style.width = `${x1 - x0}px`;
     previewRect.style.height = `${y1 - y0}px`;
+
     els.figureOverlay.appendChild(previewRect);
   }
 
   function endDraw() {
+    if (state.mode !== "figure") return;
     if (!state.drawing) return;
 
     const x0 = Math.min(state.drawing.x0, state.drawing.x1);
@@ -437,10 +543,16 @@ function unscaleY(y) {
   function bindEvents() {
     els.pageSelect?.addEventListener("change", () => loadPage(els.pageSelect.value));
     els.reloadBtn?.addEventListener("click", () => loadPage(state.pageNo));
+
     els.saveTitleBtn?.addEventListener("click", saveTitle);
+
+    els.lineModeBtn?.addEventListener("click", () => setMode("line"));
+    els.figureModeBtn?.addEventListener("click", () => setMode("figure"));
+
     els.saveParagraphBtn?.addEventListener("click", saveParagraph);
     els.clearSelectionBtn?.addEventListener("click", clearSelection);
     els.loadParagraphsBtn?.addEventListener("click", loadParagraphs);
+
     els.saveFigureBtn?.addEventListener("click", saveFigure);
     els.clearFigureSelectionBtn?.addEventListener("click", clearFigureSelection);
     els.loadFiguresBtn?.addEventListener("click", loadFigures);
@@ -449,6 +561,7 @@ function unscaleY(y) {
       syncOverlaySize();
       renderLines();
       renderFigureBoxes();
+      applyMode();
     });
 
     els.figureOverlay?.addEventListener("mousedown", startDraw);
@@ -468,6 +581,7 @@ function unscaleY(y) {
     await loadPage(state.pageNo);
     await loadParagraphs();
     await loadFigures();
+    applyMode();
   }
 
   init().catch((err) => {
