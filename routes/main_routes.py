@@ -8,7 +8,7 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 
 import db
 from config import ALLOWED_EXTENSIONS, PDF_DIR
-from services.extractor import extract_lines
+from services.extractor import extract_lines, extract_pages
 
 main_bp = Blueprint("main", __name__)
 
@@ -43,6 +43,25 @@ def upload_pdf():
         (file.filename, str(pdf_path), None),
     )
 
+    # 先にページ情報を抽出して保存
+    pages = extract_pages(pdf_path)
+    db.execute_many(
+        """
+        INSERT INTO pages (doc_id, page_no, page_width, page_height)
+        VALUES (?, ?, ?, ?)
+        """,
+        [
+            (
+                doc_id,
+                row["page_no"],
+                row["page_width"],
+                row["page_height"],
+            )
+            for row in pages
+        ],
+    )
+
+    # 次に行情報を抽出して保存
     lines = extract_lines(pdf_path)
     db.execute_many(
         """
@@ -64,7 +83,9 @@ def upload_pdf():
         ],
     )
 
-    flash(f"PDFを取り込みました。抽出行数: {len(lines)}")
+    flash(
+        f"PDFを取り込みました。ページ数: {len(pages)} / 抽出行数: {len(lines)}"
+    )
     return redirect(url_for("main.setup", doc_id=doc_id))
 
 

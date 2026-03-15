@@ -34,11 +34,34 @@ def get_pages(doc_id: int):
 
 @api_bp.get("/docs/<int:doc_id>/pages/<int:page_no>/lines")
 def get_page_lines(doc_id: int, page_no: int):
-    rows = db.fetch_all(
-        "SELECT * FROM lines WHERE doc_id = ? AND page_no = ? ORDER BY line_no",
+    page_row = db.fetch_one(
+        """
+        SELECT page_width, page_height
+        FROM pages
+        WHERE doc_id = ? AND page_no = ?
+        """,
         (doc_id, page_no),
     )
-    return jsonify(rows)
+    if page_row is None:
+        abort(404)
+
+    lines = db.fetch_all(
+        """
+        SELECT id, doc_id, page_no, line_no, text, x0, y0, x1, y1
+        FROM lines
+        WHERE doc_id = ? AND page_no = ?
+        ORDER BY line_no
+        """,
+        (doc_id, page_no),
+    )
+
+    return jsonify(
+        {
+            "page_width": page_row["page_width"],
+            "page_height": page_row["page_height"],
+            "lines": [dict(row) for row in lines],
+        }
+    )
 
 
 @api_bp.get("/docs/<int:doc_id>/pages/<int:page_no>/preview")

@@ -8,6 +8,21 @@ CREATE TABLE IF NOT EXISTS documents (
   created_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS pages (
+  id INTEGER PRIMARY KEY,
+  doc_id INTEGER NOT NULL,
+  page_no INTEGER NOT NULL,
+  page_width REAL NOT NULL,
+  page_height REAL NOT NULL,
+  preview_path TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE,
+  UNIQUE (doc_id, page_no)
+);
+
+CREATE INDEX IF NOT EXISTS idx_pages_doc_page
+ON pages(doc_id, page_no);
+
 CREATE TABLE IF NOT EXISTS lines (
   id              INTEGER PRIMARY KEY,
   doc_id          INTEGER NOT NULL,

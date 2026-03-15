@@ -13,6 +13,25 @@ def _normalize_line(text: str) -> str:
     return text.strip()
 
 
+def extract_pages(pdf_path: str | Path) -> list[dict]:
+    pdf = fitz.open(str(pdf_path))
+    try:
+        rows: list[dict] = []
+
+        for page_no in range(len(pdf)):
+            page = pdf[page_no]
+            rows.append(
+                {
+                    "page_no": page_no,
+                    "page_width": float(page.rect.width),
+                    "page_height": float(page.rect.height),
+                }
+            )
+
+        return rows
+    finally:
+        pdf.close()
+
 def extract_lines(pdf_path: str | Path) -> list[dict[str, Any]]:
     doc = fitz.open(str(pdf_path))
     rows: list[dict[str, Any]] = []

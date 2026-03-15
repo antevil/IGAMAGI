@@ -48,6 +48,9 @@
     toast: $("toast"),
   };
 
+  window.debugState = state;
+window.debugEls = els;
+
   function showToast(message, isError = false) {
     if (!els.toast) return;
     els.toast.textContent = message;
@@ -86,21 +89,25 @@
     els.figureOverlay.style.height = `${rect.height}px`;
   }
 
-  function scaleX(x) {
-    return (x / state.pageNaturalWidth) * els.pageImage.clientWidth;
-  }
+ function scaleX(x) {
+  const rect = els.pageImage.getBoundingClientRect();
+  return (x / state.pageNaturalWidth) * rect.width;
+}
 
-  function scaleY(y) {
-    return (y / state.pageNaturalHeight) * els.pageImage.clientHeight;
-  }
+function scaleY(y) {
+  const rect = els.pageImage.getBoundingClientRect();
+  return (y / state.pageNaturalHeight) * rect.height;
+}
 
-  function unscaleX(x) {
-    return (x / els.pageImage.clientWidth) * state.pageNaturalWidth;
-  }
+function unscaleX(x) {
+  const rect = els.pageImage.getBoundingClientRect();
+  return (x / rect.width) * state.pageNaturalWidth;
+}
 
-  function unscaleY(y) {
-    return (y / els.pageImage.clientHeight) * state.pageNaturalHeight;
-  }
+function unscaleY(y) {
+  const rect = els.pageImage.getBoundingClientRect();
+  return (y / rect.height) * state.pageNaturalHeight;
+}
 
   function updateSelectionFields() {
     if (els.startLineId) els.startLineId.value = state.startLineId ?? "";
@@ -224,19 +231,25 @@
   }
 
   async function loadPage(pageNo) {
-    state.pageNo = Number(pageNo);
-    els.pageImage.src = `/api/docs/${state.docId}/pages/${state.pageNo}/preview?ts=${Date.now()}`;
-    els.pageImage.onload = async () => {
-      state.pageNaturalWidth = els.pageImage.naturalWidth || 1;
-      state.pageNaturalHeight = els.pageImage.naturalHeight || 1;
-      syncOverlaySize();
-      state.lines = await fetchJSON(`/api/docs/${state.docId}/pages/${state.pageNo}/lines`);
-      renderLines();
-      renderFigureBoxes();
-      updateFigureTexts();
-    };
-  }
+  state.pageNo = Number(pageNo);
 
+  els.pageImage.src = `/api/docs/${state.docId}/pages/${state.pageNo}/preview?ts=${Date.now()}`;
+
+  els.pageImage.onload = async () => {
+    const payload = await fetchJSON(
+      `/api/docs/${state.docId}/pages/${state.pageNo}/lines`
+    );
+
+    state.pageNaturalWidth = payload.page_width || 1;
+    state.pageNaturalHeight = payload.page_height || 1;
+    state.lines = payload.lines || [];
+
+    syncOverlaySize();
+    renderLines();
+    renderFigureBoxes();
+    updateFigureTexts();
+  };
+}
   async function saveTitle() {
     await fetchJSON(`/api/docs/${state.docId}/title`, {
       method: "POST",
