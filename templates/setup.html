@@ -211,7 +211,7 @@
         <section class="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4 space-y-3">
           <h2 class="text-lg font-semibold">選択モード</h2>
           <p class="text-sm text-zinc-400">
-            line がクリックできない問題を避けるため、現在の mode の overlay だけ操作可能にしています。
+            line はクリック / ドラッグ選択、figure は Shift / Alt ドラッグです。
           </p>
 
           <div class="flex gap-2">
@@ -364,7 +364,7 @@
         <section class="space-y-3">
           <h2 class="text-lg font-semibold">PDFビュー</h2>
           <p class="text-sm text-zinc-400">
-            Line選択モードではクリック / ドラッグで複数選択、Figure選択モードでは Shift/Alt ドラッグで bbox 指定
+            Line選択モードではクリック / ドラッグ、Figure選択モードでは Shift/Alt ドラッグで bbox 指定
           </p>
 
           <div class="pdf-wrap" id="pdfWrap">
@@ -382,6 +382,6 @@
     </div>
   </div>
 
-  <script src="{{ url_for('static', filename='js/setup.js') }}"></script>
+  <script type="module" src="{{ url_for('static', filename='js/setup/index.js') }}"></script>
 </body>
 </html>

@@ -1,0 +1,239 @@
+import { els } from "./dom.js";
+import { state } from "./state.js";
+import {
+  buildTextFromLines,
+  buildTextFromTarget,
+  getSelectedLines,
+  isLineSelected,
+} from "./selection.js";
+import { escapeHtml, normalizeRect, scaleX, scaleY } from "./utils.js";
+
+export function applyMode() {
+  const isLineMode = state.mode === "line";
+  const isFigureMode = state.mode === "figure";
+
+  els.lineOverlay.style.pointerEvents = isLineMode ? "auto" : "none";
+  els.lineOverlay.style.zIndex = isLineMode ? "20" : "10";
+
+  els.figureOverlay.style.pointerEvents = isFigureMode ? "auto" : "none";
+  els.figureOverlay.style.zIndex = isFigureMode ? "20" : "10";
+
+  els.lineModeBtn?.classList.toggle("is-active", isLineMode);
+  els.figureModeBtn?.classList.toggle("is-active", isFigureMode);
+
+  if (els.modeHint) {
+    els.modeHint.textContent = isLineMode
+      ? "現在: Line選択モード"
+      : "現在: Figure選択モード（Shift=図 / Alt=caption）";
+  }
+}
+
+export function syncHeadingTextFromSelection() {
+  const autoHeading = buildTextFromTarget("heading");
+  if (document.activeElement !== els.headingText) {
+    els.headingText.value = autoHeading;
+  }
+}
+
+export function updateSelectionUI() {
+  const headingLines = getSelectedLines("heading");
+  const bodyLines = getSelectedLines("body");
+
+  const headingText = buildTextFromLines(headingLines);
+  const bodyText = buildTextFromLines(bodyLines);
+
+  els.targetHeadingBtn?.classList.toggle("is-active", state.selectionTarget === "heading");
+  els.targetBodyBtn?.classList.toggle("is-active", state.selectionTarget === "body");
+
+  if (els.selectionTargetHint) {
+    els.selectionTargetHint.textContent =
+      state.selectionTarget === "heading"
+        ? "現在: Heading選択。クリックで追加/解除、ドラッグで複数追加できます。"
+        : "現在: Body選択。クリックで追加/解除、ドラッグで複数追加できます。";
+  }
+
+  if (els.headingCountBadge) {
+    els.headingCountBadge.textContent = `Heading ${headingLines.length}行`;
+  }
+
+  if (els.bodyCountBadge) {
+    els.bodyCountBadge.textContent = `Body ${bodyLines.length}行`;
+  }
+
+  if (els.headingPreview) {
+    els.headingPreview.textContent = headingText || "(未選択)";
+  }
+
+  if (els.bodyPreview) {
+    els.bodyPreview.textContent = bodyText || "(未選択)";
+  }
+
+  if (!bodyLines.length) {
+    els.selectionStatus.textContent = "Body行を選択してください";
+  } else if (!headingLines.length && !els.headingText.value.trim()) {
+    els.selectionStatus.textContent = "保存できます（heading は空でも可）";
+  } else {
+    els.selectionStatus.textContent = "保存できます";
+  }
+}
+
+export function renderLines() {
+  els.lineOverlay.innerHTML = "";
+  const fragment = document.createDocumentFragment();
+
+  for (const line of state.lines) {
+    const div = document.createElement("div");
+    div.className = "line-box";
+    div.dataset.lineId = String(line.id);
+
+    const inHeading = isLineSelected(line.id, "heading");
+    const inBody = isLineSelected(line.id, "body");
+
+    if (inHeading && inBody) {
+      div.classList.add("selected-both");
+    } else if (inHeading) {
+      div.classList.add("selected-heading");
+    } else if (inBody) {
+      div.classList.add("selected-body");
+    }
+
+    div.style.left = `${scaleX(line.x0)}px`;
+    div.style.top = `${scaleY(line.y0)}px`;
+    div.style.width = `${Math.max(3, scaleX(line.x1) - scaleX(line.x0))}px`;
+    div.style.height = `${Math.max(3, scaleY(line.y1) - scaleY(line.y0))}px`;
+    div.title = `${line.line_no}: ${line.text}`;
+
+    fragment.appendChild(div);
+  }
+
+  els.lineOverlay.appendChild(fragment);
+  renderDragRect();
+}
+
+function getOrCreateDragRectElement() {
+  let el = els.lineOverlay.querySelector(".drag-rect");
+  if (!el) {
+    el = document.createElement("div");
+    el.className = "drag-rect";
+    els.lineOverlay.appendChild(el);
+  }
+  return el;
+}
+
+export function removeDragRect() {
+  els.lineOverlay.querySelector(".drag-rect")?.remove();
+}
+
+export function renderDragRect() {
+  if (!state.lineDrag.active || !state.lineDrag.moved) {
+    removeDragRect();
+    return;
+  }
+
+  const rect = normalizeRect({
+    x0: state.lineDrag.x0,
+    y0: state.lineDrag.y0,
+    x1: state.lineDrag.x1,
+    y1: state.lineDrag.y1,
+  });
+
+  const el = getOrCreateDragRectElement();
+  el.style.left = `${rect.x0}px`;
+  el.style.top = `${rect.y0}px`;
+  el.style.width = `${Math.max(1, rect.x1 - rect.x0)}px`;
+  el.style.height = `${Math.max(1, rect.y1 - rect.y0)}px`;
+}
+
+function placeRect(el, bbox) {
+  el.style.left = `${scaleX(bbox.x0)}px`;
+  el.style.top = `${scaleY(bbox.y0)}px`;
+  el.style.width = `${scaleX(bbox.x1) - scaleX(bbox.x0)}px`;
+  el.style.height = `${scaleY(bbox.y1) - scaleY(bbox.y0)}px`;
+}
+
+export function renderFigureBoxes() {
+  els.figureOverlay.querySelectorAll(".draw-rect").forEach((el) => el.remove());
+
+  if (state.imageBBox) {
+    const rect = document.createElement("div");
+    rect.className = "draw-rect";
+    placeRect(rect, state.imageBBox);
+    els.figureOverlay.appendChild(rect);
+  }
+
+  if (state.captionBBox) {
+    const rect = document.createElement("div");
+    rect.className = "draw-rect caption";
+    placeRect(rect, state.captionBBox);
+    els.figureOverlay.appendChild(rect);
+  }
+}
+
+export function updateFigureTexts() {
+  if (els.figurePageNo) els.figurePageNo.value = state.pageNo;
+
+  if (els.imageBboxText) {
+    els.imageBboxText.textContent = `image_bbox: ${
+      state.imageBBox ? JSON.stringify(state.imageBBox) : "未選択"
+    }`;
+  }
+
+  if (els.captionBboxText) {
+    els.captionBboxText.textContent = `caption_bbox: ${
+      state.captionBBox ? JSON.stringify(state.captionBBox) : "未選択"
+    }`;
+  }
+}
+
+function paragraphCard(paragraph) {
+  const card = document.createElement("div");
+  card.className = "rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3";
+
+  card.innerHTML = `
+    <div class="font-medium">#${paragraph.order_index} ${escapeHtml(paragraph.heading_text || "(no heading)")}</div>
+    <div class="text-sm text-zinc-400">${escapeHtml(paragraph.unit_type)} / p.${paragraph.page_no + 1} - ${paragraph.end_page_no + 1}</div>
+    <div class="text-sm whitespace-pre-wrap break-words">${escapeHtml(paragraph.raw_text || "")}</div>
+  `;
+
+  return card;
+}
+
+export function renderParagraphList() {
+  if (!els.paragraphList) return;
+
+  els.paragraphList.innerHTML = "";
+  for (const paragraph of state.paragraphCache) {
+    els.paragraphList.appendChild(paragraphCard(paragraph));
+  }
+}
+
+function figureCard(figure) {
+  const card = document.createElement("div");
+  card.className = "rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3";
+
+  const imgSrc = figure.image_path ? `/${figure.image_path}` : "";
+
+  card.innerHTML = `
+    <div class="font-medium">${escapeHtml(figure.fig_no)}</div>
+    <div class="text-sm text-zinc-400">page ${figure.page_no + 1}</div>
+    ${imgSrc ? `<img src="${imgSrc}" alt="${escapeHtml(figure.fig_no)}" class="max-h-48 rounded-lg border border-zinc-800">` : ""}
+    <div class="text-sm whitespace-pre-wrap break-words">${escapeHtml(figure.caption_text || "")}</div>
+  `;
+
+  return card;
+}
+
+export function renderFigureList() {
+  if (!els.figureList) return;
+
+  els.figureList.innerHTML = "";
+  for (const figure of state.figureCache) {
+    els.figureList.appendChild(figureCard(figure));
+  }
+}
+
+export function refreshSelectionView() {
+  syncHeadingTextFromSelection();
+  updateSelectionUI();
+  renderLines();
+}
