@@ -88,53 +88,77 @@ def save_title(doc_id: int):
 @api_bp.post("/docs/<int:doc_id>/paragraphs")
 def create_paragraph(doc_id: int):
     payload = request.get_json(force=True)
-    start_line_id = int(payload["start_line_id"])
-    end_line_id = int(payload["end_line_id"])
+
+    selected_line_ids = [int(x) for x in (payload.get("selected_line_ids") or [])]
+    heading_line_ids = [int(x) for x in (payload.get("heading_line_ids") or [])]
+
     order_index = int(payload["order_index"])
     unit_type = (payload.get("unit_type") or "body").strip() or "body"
-    heading_text = (payload.get("heading_text") or "").strip() or None
 
-    start_line = db.fetch_one("SELECT * FROM lines WHERE id = ? AND doc_id = ?", (start_line_id, doc_id))
-    end_line = db.fetch_one("SELECT * FROM lines WHERE id = ? AND doc_id = ?", (end_line_id, doc_id))
-    if start_line is None or end_line is None:
-        abort(400, "invalid line ids")
+    explicit_heading_text = (payload.get("heading_text") or "").strip()
 
-    lines = db.fetch_all(
-        """
-        SELECT * FROM lines
+    # body は必須
+    if not selected_line_ids:
+        abort(400, "selected_line_ids is required")
+
+    # body 行を取得
+    placeholders = ",".join(["?"] * len(selected_line_ids))
+    body_lines = db.fetch_all(
+        f"""
+        SELECT *
+        FROM lines
         WHERE doc_id = ?
-          AND (
-            page_no > ? OR (page_no = ? AND line_no >= ?)
-          )
-          AND (
-            page_no < ? OR (page_no = ? AND line_no <= ?)
-          )
+          AND id IN ({placeholders})
         ORDER BY page_no, line_no
         """,
-        (
-            doc_id,
-            start_line["page_no"],
-            start_line["page_no"],
-            start_line["line_no"],
-            end_line["page_no"],
-            end_line["page_no"],
-            end_line["line_no"],
-        ),
+        (doc_id, *selected_line_ids),
     )
-    raw_text = build_paragraph_text(lines)
+
+    if not body_lines:
+        abort(400, "invalid selected_line_ids")
+
+    # heading 行を取得（任意）
+    heading_lines = []
+    if heading_line_ids:
+        heading_placeholders = ",".join(["?"] * len(heading_line_ids))
+        heading_lines = db.fetch_all(
+            f"""
+            SELECT *
+            FROM lines
+            WHERE doc_id = ?
+              AND id IN ({heading_placeholders})
+            ORDER BY page_no, line_no
+            """,
+            (doc_id, *heading_line_ids),
+        )
+
+    start_line_id = int(body_lines[0]["id"])
+    end_line_id = int(body_lines[-1]["id"])
+    start_page_no = int(body_lines[0]["page_no"])
+    end_page_no = int(body_lines[-1]["page_no"])
+
+    raw_text = build_paragraph_text(body_lines)
     normalized_text = normalize_paragraph_text(raw_text)
+
+    heading_text = explicit_heading_text
+    if not heading_text and heading_lines:
+        heading_text = build_paragraph_text(heading_lines).strip()
+
+    heading_text = heading_text or None
+
     paragraph_id = db.execute(
         """
         INSERT INTO paragraphs
-        (doc_id, order_index, unit_type, page_no, end_page_no, start_line_id, end_line_id, heading_text, raw_text, normalized_text)
+        (doc_id, order_index, unit_type, page_no, end_page_no,
+         start_line_id, end_line_id, heading_text, raw_text, normalized_text)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             doc_id,
             order_index,
             unit_type,
-            start_line["page_no"],
-            end_line["page_no"],
+            start_page_no,
+            end_page_no,
             start_line_id,
             end_line_id,
             heading_text,
@@ -142,8 +166,8 @@ def create_paragraph(doc_id: int):
             normalized_text,
         ),
     )
-    return jsonify({"ok": True, "paragraph_id": paragraph_id})
 
+    return jsonify({"ok": True, "paragraph_id": paragraph_id})
 
 @api_bp.get("/docs/<int:doc_id>/paragraphs")
 def list_paragraphs(doc_id: int):

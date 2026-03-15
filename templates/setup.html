@@ -9,6 +9,8 @@
     .pdf-wrap {
       position: relative;
       width: 100%;
+      user-select: none;
+      -webkit-user-select: none;
     }
 
     .pdf-page {
@@ -18,6 +20,9 @@
       border-radius: 0.75rem;
       border: 1px solid rgb(63 63 70);
       background: rgb(24 24 27);
+      user-select: none;
+      -webkit-user-drag: none;
+      pointer-events: none;
     }
 
     .pdf-overlay {
@@ -34,25 +39,34 @@
       box-sizing: border-box;
       border-radius: 4px;
       cursor: pointer;
+      transition: background 0.12s ease, border-color 0.12s ease;
     }
 
     .line-box:hover {
       background: rgba(99, 102, 241, 0.18);
     }
 
-    .line-box.selected-start {
+    .line-box.selected-heading {
+      border-color: rgba(245, 158, 11, 0.95);
+      background: rgba(245, 158, 11, 0.18);
+    }
+
+    .line-box.selected-body {
       border-color: rgba(16, 185, 129, 0.95);
       background: rgba(16, 185, 129, 0.18);
     }
 
-    .line-box.selected-end {
-      border-color: rgba(244, 63, 94, 0.95);
-      background: rgba(244, 63, 94, 0.18);
-    }
-
-    .line-box.selected-between {
-      border-color: rgba(59, 130, 246, 0.9);
-      background: rgba(59, 130, 246, 0.12);
+    .line-box.selected-both {
+      border-color: rgba(236, 72, 153, 0.98);
+      background:
+        linear-gradient(
+          135deg,
+          rgba(245, 158, 11, 0.18) 0%,
+          rgba(245, 158, 11, 0.18) 45%,
+          rgba(16, 185, 129, 0.18) 55%,
+          rgba(16, 185, 129, 0.18) 100%
+        );
+      box-shadow: inset 0 0 0 1px rgba(236, 72, 153, 0.55);
     }
 
     .draw-rect {
@@ -67,6 +81,16 @@
     .draw-rect.caption {
       border-color: rgba(245, 158, 11, 0.95);
       background: rgba(245, 158, 11, 0.12);
+    }
+
+    .drag-rect {
+      position: absolute;
+      border: 2px dashed rgba(59, 130, 246, 0.95);
+      background: rgba(59, 130, 246, 0.10);
+      box-sizing: border-box;
+      border-radius: 4px;
+      pointer-events: none;
+      z-index: 40;
     }
 
     .mode-btn {
@@ -84,6 +108,65 @@
       background: rgb(79 70 229);
       border-color: rgb(99 102 241);
       color: white;
+    }
+
+    .target-btn {
+      border: 1px solid rgb(63 63 70);
+      background: rgb(24 24 27);
+      color: rgb(228 228 231);
+      border-radius: 0.75rem;
+      padding: 0.55rem 0.9rem;
+      font-size: 0.95rem;
+      line-height: 1.2;
+      transition: 0.15s ease;
+    }
+
+    .target-btn.is-active.heading {
+      background: rgba(245, 158, 11, 0.18);
+      border-color: rgba(245, 158, 11, 0.85);
+      color: rgb(253 224 71);
+    }
+
+    .target-btn.is-active.body {
+      background: rgba(16, 185, 129, 0.16);
+      border-color: rgba(16, 185, 129, 0.85);
+      color: rgb(167 243 208);
+    }
+
+    .mini-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      border-radius: 9999px;
+      padding: 0.2rem 0.55rem;
+      font-size: 0.78rem;
+      border: 1px solid rgb(63 63 70);
+      background: rgb(24 24 27);
+      color: rgb(212 212 216);
+    }
+
+    .mini-badge.heading {
+      border-color: rgba(245, 158, 11, 0.65);
+      color: rgb(253 224 71);
+    }
+
+    .mini-badge.body {
+      border-color: rgba(16, 185, 129, 0.65);
+      color: rgb(167 243 208);
+    }
+
+    .preview-box {
+      min-height: 5rem;
+      max-height: 10rem;
+      overflow: auto;
+      border-radius: 0.75rem;
+      border: 1px solid rgb(63 63 70);
+      background: rgb(9 9 11);
+      padding: 0.75rem;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
     }
   </style>
 </head>
@@ -107,7 +190,7 @@
       </a>
     </div>
 
-    <div class="grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-4">
+    <div class="grid grid-cols-1 xl:grid-cols-[380px_minmax(0,1fr)] gap-4">
       <aside class="space-y-4">
         <section class="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4 space-y-3">
           <h2 class="text-lg font-semibold">文書メタ</h2>
@@ -141,7 +224,7 @@
           </div>
         </section>
 
-        <section class="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4 space-y-3">
+        <section class="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4 space-y-4">
           <div class="flex items-center justify-between">
             <h2 class="text-lg font-semibold">段落作成</h2>
             <button id="loadParagraphsBtn" type="button"
@@ -150,19 +233,20 @@
             </button>
           </div>
 
-          <p class="text-sm text-zinc-400">開始行と終了行を選択</p>
+          <div class="space-y-2">
+            <div class="text-sm text-zinc-400">選択先</div>
+            <div class="grid grid-cols-2 gap-2">
+              <button id="targetHeadingBtn" type="button" class="target-btn heading">Heading選択</button>
+              <button id="targetBodyBtn" type="button" class="target-btn body is-active">Body選択</button>
+            </div>
+            <div id="selectionTargetHint" class="text-sm text-zinc-400">
+              現在: Body選択。クリックで追加/解除、ドラッグで複数追加できます。
+            </div>
+          </div>
 
-          <div class="grid grid-cols-2 gap-3">
-            <div class="space-y-2">
-              <label for="startLineId" class="block text-sm text-zinc-400">start_line_id</label>
-              <input id="startLineId" type="text" readonly
-                class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-300">
-            </div>
-            <div class="space-y-2">
-              <label for="endLineId" class="block text-sm text-zinc-400">end_line_id</label>
-              <input id="endLineId" type="text" readonly
-                class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-300">
-            </div>
+          <div class="flex flex-wrap gap-2">
+            <span id="headingCountBadge" class="mini-badge heading">Heading 0行</span>
+            <span id="bodyCountBadge" class="mini-badge body">Body 0行</span>
           </div>
 
           <div class="space-y-2">
@@ -184,10 +268,21 @@
           <div class="space-y-2">
             <label for="headingText" class="block text-sm text-zinc-400">paragraph title</label>
             <input id="headingText" type="text"
-              class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 outline-none focus:border-indigo-500">
+              class="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2 outline-none focus:border-indigo-500"
+              placeholder="Heading選択があれば自動反映。手入力で上書きも可能">
           </div>
 
-          <div id="selectionStatus" class="text-sm text-zinc-400">開始行と終了行を選択</div>
+          <div class="space-y-2">
+            <div class="text-sm text-zinc-400">Heading preview</div>
+            <div id="headingPreview" class="preview-box text-zinc-200"></div>
+          </div>
+
+          <div class="space-y-2">
+            <div class="text-sm text-zinc-400">Body preview</div>
+            <div id="bodyPreview" class="preview-box text-zinc-200"></div>
+          </div>
+
+          <div id="selectionStatus" class="text-sm text-zinc-400">Body行を選択してください</div>
 
           <div class="grid grid-cols-2 gap-2">
             <button id="saveParagraphBtn" type="button"
@@ -269,11 +364,11 @@
         <section class="space-y-3">
           <h2 class="text-lg font-semibold">PDFビュー</h2>
           <p class="text-sm text-zinc-400">
-            Line選択モードでは行クリック、Figure選択モードでは Shift/Alt ドラッグで bbox 指定
+            Line選択モードではクリック / ドラッグで複数選択、Figure選択モードでは Shift/Alt ドラッグで bbox 指定
           </p>
 
           <div class="pdf-wrap" id="pdfWrap">
-            <img id="pageImage" class="pdf-page" alt="PDF page preview">
+            <img id="pageImage" class="pdf-page" alt="PDF page preview" draggable="false">
             <div id="lineOverlay" class="pdf-overlay"></div>
             <div id="figureOverlay" class="pdf-overlay"></div>
           </div>

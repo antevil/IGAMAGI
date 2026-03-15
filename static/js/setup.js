@@ -9,8 +9,20 @@
     pageNaturalWidth: 1,
     pageNaturalHeight: 1,
 
-    startLineId: null,
-    endLineId: null,
+    selectionTarget: "body", // "heading" | "body"
+    headingSelectedLineIds: [],
+    bodySelectedLineIds: [],
+
+    lineDrag: {
+      active: false,
+      moved: false,
+      x0: 0,
+      y0: 0,
+      x1: 0,
+      y1: 0,
+      pointerId: null,
+      startedOnLineId: null,
+    },
 
     imageBBox: null,
     captionBBox: null,
@@ -32,6 +44,7 @@
     saveTitleBtn: $("saveTitleBtn"),
 
     pageImage: $("pageImage"),
+    pdfWrap: $("pdfWrap"),
     lineOverlay: $("lineOverlay"),
     figureOverlay: $("figureOverlay"),
 
@@ -39,11 +52,17 @@
     figureModeBtn: $("figureModeBtn"),
     modeHint: $("modeHint"),
 
-    startLineId: $("startLineId"),
-    endLineId: $("endLineId"),
+    targetHeadingBtn: $("targetHeadingBtn"),
+    targetBodyBtn: $("targetBodyBtn"),
+    selectionTargetHint: $("selectionTargetHint"),
+    headingCountBadge: $("headingCountBadge"),
+    bodyCountBadge: $("bodyCountBadge"),
+
     orderIndex: $("orderIndex"),
     unitType: $("unitType"),
     headingText: $("headingText"),
+    headingPreview: $("headingPreview"),
+    bodyPreview: $("bodyPreview"),
     saveParagraphBtn: $("saveParagraphBtn"),
     clearSelectionBtn: $("clearSelectionBtn"),
     selectionStatus: $("selectionStatus"),
@@ -88,7 +107,7 @@
   }
 
   function escapeHtml(text) {
-    return String(text)
+    return String(text ?? "")
       .replaceAll("&", "&amp;")
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;")
@@ -104,24 +123,214 @@
     els.figureOverlay.style.height = `${rect.height}px`;
   }
 
+  function getImageRect() {
+    return els.pageImage.getBoundingClientRect();
+  }
+
   function scaleX(x) {
-    const rect = els.pageImage.getBoundingClientRect();
+    const rect = getImageRect();
     return (x / state.pageNaturalWidth) * rect.width;
   }
 
   function scaleY(y) {
-    const rect = els.pageImage.getBoundingClientRect();
+    const rect = getImageRect();
     return (y / state.pageNaturalHeight) * rect.height;
   }
 
   function unscaleX(x) {
-    const rect = els.pageImage.getBoundingClientRect();
+    const rect = getImageRect();
     return (x / rect.width) * state.pageNaturalWidth;
   }
 
   function unscaleY(y) {
-    const rect = els.pageImage.getBoundingClientRect();
+    const rect = getImageRect();
     return (y / rect.height) * state.pageNaturalHeight;
+  }
+
+  function overlayPointFromEvent(event) {
+    const rect = els.lineOverlay.getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
+      y: Math.max(0, Math.min(rect.height, event.clientY - rect.top)),
+    };
+  }
+
+  function normalizeRect(rect) {
+    const x0 = Math.min(rect.x0, rect.x1);
+    const y0 = Math.min(rect.y0, rect.y1);
+    const x1 = Math.max(rect.x0, rect.x1);
+    const y1 = Math.max(rect.y0, rect.y1);
+    return { x0, y0, x1, y1 };
+  }
+
+  function rectIntersects(a, b) {
+    return !(
+      a.x1 < b.x0 ||
+      a.x0 > b.x1 ||
+      a.y1 < b.y0 ||
+      a.y0 > b.y1
+    );
+  }
+
+  function compareLineOrder(a, b) {
+    if (a.page_no !== b.page_no) return a.page_no - b.page_no;
+    return a.line_no - b.line_no;
+  }
+
+  function sortLines(lines) {
+    return [...lines].sort(compareLineOrder);
+  }
+
+  function getLineById(id) {
+    return state.lines.find((line) => line.id === id) || null;
+  }
+
+  function getSelectedIdArray(target) {
+    return target === "heading"
+      ? state.headingSelectedLineIds
+      : state.bodySelectedLineIds;
+  }
+
+  function setSelectedIdArray(target, ids) {
+    const uniqueIds = [...new Set(ids.map(Number))];
+
+    if (target === "heading") {
+      state.headingSelectedLineIds = uniqueIds;
+    } else {
+      state.bodySelectedLineIds = uniqueIds;
+    }
+  }
+
+  function getSelectedLines(target) {
+    const ids = getSelectedIdArray(target);
+    const selected = ids
+      .map((id) => getLineById(id))
+      .filter(Boolean);
+    return sortLines(selected);
+  }
+
+  function buildTextFromLines(lines) {
+    return lines
+      .map((line) => String(line.text || "").trim())
+      .filter(Boolean)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function buildTextFromTarget(target) {
+    return buildTextFromLines(getSelectedLines(target));
+  }
+
+  function getRepresentativeRangeIds(target) {
+    const lines = getSelectedLines(target);
+    if (!lines.length) {
+      return { start_line_id: null, end_line_id: null };
+    }
+    return {
+      start_line_id: Number(lines[0].id),
+      end_line_id: Number(lines[lines.length - 1].id),
+    };
+  }
+
+  function isLineSelected(lineId, target) {
+    return getSelectedIdArray(target).includes(Number(lineId));
+  }
+
+  function toggleLineSelection(lineId, target = state.selectionTarget) {
+    const current = getSelectedIdArray(target);
+    const id = Number(lineId);
+
+    if (current.includes(id)) {
+      setSelectedIdArray(
+        target,
+        current.filter((x) => x !== id)
+      );
+    } else {
+      setSelectedIdArray(target, [...current, id]);
+    }
+
+    syncHeadingTextFromSelection();
+    updateSelectionUI();
+    renderLines();
+  }
+
+  function addLinesToSelection(lineIds, target = state.selectionTarget) {
+    const current = getSelectedIdArray(target);
+    setSelectedIdArray(target, [...current, ...lineIds]);
+    syncHeadingTextFromSelection();
+    updateSelectionUI();
+    renderLines();
+  }
+
+  function clearSelection() {
+    state.headingSelectedLineIds = [];
+    state.bodySelectedLineIds = [];
+    state.lineDrag.active = false;
+    state.lineDrag.moved = false;
+    state.lineDrag.pointerId = null;
+    state.lineDrag.startedOnLineId = null;
+
+    removeDragRect();
+    syncHeadingTextFromSelection();
+    updateSelectionUI();
+    renderLines();
+  }
+
+  function setSelectionTarget(target) {
+    state.selectionTarget = target;
+
+    els.targetHeadingBtn?.classList.toggle("is-active", target === "heading");
+    els.targetBodyBtn?.classList.toggle("is-active", target === "body");
+
+    if (els.selectionTargetHint) {
+      els.selectionTargetHint.textContent =
+        target === "heading"
+          ? "現在: Heading選択。クリックで追加/解除、ドラッグで複数追加できます。"
+          : "現在: Body選択。クリックで追加/解除、ドラッグで複数追加できます。";
+    }
+  }
+
+  function syncHeadingTextFromSelection() {
+    const autoHeading = buildTextFromTarget("heading");
+    if (document.activeElement !== els.headingText) {
+      els.headingText.value = autoHeading;
+    }
+  }
+
+  function updateSelectionUI() {
+    const headingLines = getSelectedLines("heading");
+    const bodyLines = getSelectedLines("body");
+    const headingText = buildTextFromLines(headingLines);
+    const bodyText = buildTextFromLines(bodyLines);
+
+    if (els.headingCountBadge) {
+      els.headingCountBadge.textContent = `Heading ${headingLines.length}行`;
+    }
+    if (els.bodyCountBadge) {
+      els.bodyCountBadge.textContent = `Body ${bodyLines.length}行`;
+    }
+
+    if (els.headingPreview) {
+      els.headingPreview.textContent = headingText || "(未選択)";
+    }
+    if (els.bodyPreview) {
+      els.bodyPreview.textContent = bodyText || "(未選択)";
+    }
+
+    if (!els.selectionStatus) return;
+
+    if (!bodyLines.length) {
+      els.selectionStatus.textContent = "Body行を選択してください";
+      return;
+    }
+
+    if (!headingLines.length && !els.headingText.value.trim()) {
+      els.selectionStatus.textContent = "保存できます（heading は空でも可）";
+      return;
+    }
+
+    els.selectionStatus.textContent = "保存できます";
   }
 
   function setMode(mode) {
@@ -153,67 +362,6 @@
     }
   }
 
-  function updateSelectionFields() {
-    if (els.startLineId) els.startLineId.value = state.startLineId ?? "";
-    if (els.endLineId) els.endLineId.value = state.endLineId ?? "";
-
-    if (!els.selectionStatus) return;
-
-    if (!state.startLineId && !state.endLineId) {
-      els.selectionStatus.textContent = "開始行と終了行を選択";
-    } else if (state.startLineId && !state.endLineId) {
-      els.selectionStatus.textContent = "終了行を選択してください";
-    } else {
-      els.selectionStatus.textContent = "保存できます";
-    }
-  }
-
-  function compareLineOrder(a, b) {
-    if (a.page_no !== b.page_no) return a.page_no - b.page_no;
-    return a.line_no - b.line_no;
-  }
-
-  function getSelectedLines() {
-  if (!state.startLineId || !state.endLineId) return [];
-
-  const start = state.lines.find((x) => x.id === state.startLineId);
-  const end = state.lines.find((x) => x.id === state.endLineId);
-
-  if (!start || !end) return [];
-
-  let lo = start;
-  let hi = end;
-
-  if (compareLineOrder(lo, hi) > 0) {
-    [lo, hi] = [hi, lo];
-  }
-
-  return state.lines.filter((line) => {
-    return compareLineOrder(line, lo) >= 0 && compareLineOrder(line, hi) <= 0;
-  });
-}
-
-function buildSelectedRawText() {
-  return getSelectedLines()
-    .map((line) => String(line.text || "").trim())
-    .filter(Boolean)
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-  function isWithinSelectedRange(line) {
-    if (!state.startLineId || !state.endLineId) return false;
-
-    const start = state.lines.find((x) => x.id === state.startLineId);
-    const end = state.lines.find((x) => x.id === state.endLineId);
-
-    if (!start || !end || start.page_no !== end.page_no) return false;
-
-    const [lo, hi] = [start.line_no, end.line_no].sort((a, b) => a - b);
-    return line.line_no >= lo && line.line_no <= hi;
-  }
-
   function renderLines() {
     if (!els.lineOverlay) return;
 
@@ -224,15 +372,17 @@ function buildSelectedRawText() {
       const div = document.createElement("button");
       div.type = "button";
       div.className = "line-box";
+      div.dataset.lineId = String(line.id);
 
-      if (line.id === state.startLineId) div.classList.add("selected-start");
-      if (line.id === state.endLineId) div.classList.add("selected-end");
-      if (
-        isWithinSelectedRange(line) &&
-        line.id !== state.startLineId &&
-        line.id !== state.endLineId
-      ) {
-        div.classList.add("selected-between");
+      const inHeading = isLineSelected(line.id, "heading");
+      const inBody = isLineSelected(line.id, "body");
+
+      if (inHeading && inBody) {
+        div.classList.add("selected-both");
+      } else if (inHeading) {
+        div.classList.add("selected-heading");
+      } else if (inBody) {
+        div.classList.add("selected-body");
       }
 
       div.style.left = `${scaleX(line.x0)}px`;
@@ -240,19 +390,155 @@ function buildSelectedRawText() {
       div.style.width = `${Math.max(3, scaleX(line.x1) - scaleX(line.x0))}px`;
       div.style.height = `${Math.max(3, scaleY(line.y1) - scaleY(line.y0))}px`;
       div.title = `${line.line_no}: ${line.text}`;
-      div.style.pointerEvents = state.mode === "line" ? "auto" : "none";
 
       div.addEventListener("click", (event) => {
+        if (state.mode !== "line") return;
+
+        if (state.lineDrag.moved) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+
         event.preventDefault();
         event.stopPropagation();
-        if (state.mode !== "line") return;
-        selectLine(line);
+        toggleLineSelection(line.id);
       });
 
       fragment.appendChild(div);
     }
 
     els.lineOverlay.appendChild(fragment);
+
+    if (state.lineDrag.active || state.lineDrag.moved) {
+      renderDragRect();
+    }
+  }
+
+  function getDragRectElement() {
+    let el = els.lineOverlay.querySelector(".drag-rect");
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "drag-rect";
+      els.lineOverlay.appendChild(el);
+    }
+    return el;
+  }
+
+  function removeDragRect() {
+    els.lineOverlay.querySelector(".drag-rect")?.remove();
+  }
+
+  function renderDragRect() {
+    if (!state.lineDrag.active && !state.lineDrag.moved) {
+      removeDragRect();
+      return;
+    }
+
+    const rect = normalizeRect({
+      x0: state.lineDrag.x0,
+      y0: state.lineDrag.y0,
+      x1: state.lineDrag.x1,
+      y1: state.lineDrag.y1,
+    });
+
+    const el = getDragRectElement();
+    el.style.left = `${rect.x0}px`;
+    el.style.top = `${rect.y0}px`;
+    el.style.width = `${Math.max(1, rect.x1 - rect.x0)}px`;
+    el.style.height = `${Math.max(1, rect.y1 - rect.y0)}px`;
+  }
+
+  function getIntersectingLineIdsFromDrag() {
+    const dragRect = normalizeRect({
+      x0: state.lineDrag.x0,
+      y0: state.lineDrag.y0,
+      x1: state.lineDrag.x1,
+      y1: state.lineDrag.y1,
+    });
+
+    const ids = [];
+
+    for (const line of state.lines) {
+      const lineRect = {
+        x0: scaleX(line.x0),
+        y0: scaleY(line.y0),
+        x1: scaleX(line.x1),
+        y1: scaleY(line.y1),
+      };
+      if (rectIntersects(dragRect, lineRect)) {
+        ids.push(Number(line.id));
+      }
+    }
+
+    return ids;
+  }
+
+  function handleLinePointerDown(event) {
+    if (state.mode !== "line") return;
+    if (event.button !== 0) return;
+
+    const point = overlayPointFromEvent(event);
+    const lineBox = event.target.closest(".line-box");
+
+    state.lineDrag.active = true;
+    state.lineDrag.moved = false;
+    state.lineDrag.x0 = point.x;
+    state.lineDrag.y0 = point.y;
+    state.lineDrag.x1 = point.x;
+    state.lineDrag.y1 = point.y;
+    state.lineDrag.pointerId = event.pointerId ?? 1;
+    state.lineDrag.startedOnLineId = lineBox ? Number(lineBox.dataset.lineId) : null;
+
+    els.lineOverlay.setPointerCapture?.(state.lineDrag.pointerId);
+    renderDragRect();
+  }
+
+  function handleLinePointerMove(event) {
+    if (!state.lineDrag.active) return;
+    if (state.mode !== "line") return;
+
+    const point = overlayPointFromEvent(event);
+    state.lineDrag.x1 = point.x;
+    state.lineDrag.y1 = point.y;
+
+    const dx = Math.abs(state.lineDrag.x1 - state.lineDrag.x0);
+    const dy = Math.abs(state.lineDrag.y1 - state.lineDrag.y0);
+
+    if (dx > 4 || dy > 4) {
+      state.lineDrag.moved = true;
+    }
+
+    renderDragRect();
+  }
+
+  function handleLinePointerUp(event) {
+    if (!state.lineDrag.active) return;
+
+    const pointerId = state.lineDrag.pointerId;
+    const moved = state.lineDrag.moved;
+
+    if (moved) {
+      const ids = getIntersectingLineIdsFromDrag();
+      if (ids.length) {
+        addLinesToSelection(ids);
+      }
+    }
+
+    state.lineDrag.active = false;
+    state.lineDrag.moved = false;
+    state.lineDrag.pointerId = null;
+    state.lineDrag.startedOnLineId = null;
+
+    removeDragRect();
+    if (pointerId != null) {
+      els.lineOverlay.releasePointerCapture?.(pointerId);
+    }
+
+    if (moved) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
   }
 
   function placeRect(el, bbox) {
@@ -298,30 +584,6 @@ function buildSelectedRawText() {
     }
   }
 
-  function selectLine(line) {
-    if (!state.startLineId || (state.startLineId && state.endLineId)) {
-      state.startLineId = line.id;
-      state.endLineId = null;
-    } else {
-      state.endLineId = line.id;
-      const start = state.lines.find((x) => x.id === state.startLineId);
-      if (start && compareLineOrder(line, start) < 0) {
-        state.endLineId = state.startLineId;
-        state.startLineId = line.id;
-      }
-    }
-
-    updateSelectionFields();
-    renderLines();
-  }
-
-  function clearSelection() {
-    state.startLineId = null;
-    state.endLineId = null;
-    updateSelectionFields();
-    renderLines();
-  }
-
   function clearFigureSelection() {
     state.imageBBox = null;
     state.captionBBox = null;
@@ -336,9 +598,7 @@ function buildSelectedRawText() {
     els.pageImage.src = `/api/docs/${state.docId}/pages/${state.pageNo}/preview?ts=${Date.now()}`;
 
     els.pageImage.onload = async () => {
-      const payload = await fetchJSON(
-        `/api/docs/${state.docId}/pages/${state.pageNo}/lines`
-      );
+      const payload = await fetchJSON(`/api/docs/${state.docId}/pages/${state.pageNo}/lines`);
 
       state.pageNaturalWidth = payload.page_width || 1;
       state.pageNaturalHeight = payload.page_height || 1;
@@ -349,6 +609,7 @@ function buildSelectedRawText() {
       renderFigureBoxes();
       updateFigureTexts();
       applyMode();
+      updateSelectionUI();
     };
   }
 
@@ -367,76 +628,80 @@ function buildSelectedRawText() {
   }
 
   async function saveParagraph() {
-  if (!state.startLineId || !state.endLineId) {
-    showToast("開始行と終了行を選択してください", true);
-    return;
-  }
+    const bodyLines = getSelectedLines("body");
+    if (!bodyLines.length) {
+      showToast("Body行を選択してください", true);
+      return;
+    }
 
-  const currentUnitType = els.unitType.value;
+    const headingLines = getSelectedLines("heading");
+    const bodyRange = getRepresentativeRangeIds("body");
 
-  const payload = {
-    start_line_id: Number(state.startLineId),
-    end_line_id: Number(state.endLineId),
-    order_index: Number(els.orderIndex.value || 0),
-    unit_type: currentUnitType,
-    heading_text: els.headingText.value.trim(),
-  };
+    const bodySelectedLineIds = bodyLines.map((line) => Number(line.id));
+    const headingSelectedLineIds = headingLines.map((line) => Number(line.id));
 
-  const result = await fetchJSON(`/api/docs/${state.docId}/paragraphs`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+    const headingText =
+      els.headingText.value.trim() || buildTextFromLines(headingLines);
 
-  await fetchJSON(`/api/paragraphs/${result.paragraph_id}/split_sentences`, {
-    method: "POST",
-  });
+    const payload = {
+      start_line_id: bodyRange.start_line_id,
+      end_line_id: bodyRange.end_line_id,
+      selected_line_ids: bodySelectedLineIds,
+      heading_line_ids: headingSelectedLineIds,
+      order_index: Number(els.orderIndex.value || 0),
+      unit_type: els.unitType.value,
+      heading_text: headingText,
+    };
 
-  const translateResult = await fetchJSON(
-    `/api/paragraphs/${result.paragraph_id}/translate`,
-    {
+    const result = await fetchJSON(`/api/docs/${state.docId}/paragraphs`, {
       method: "POST",
-    }
-  );
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
 
-  // title として保存したときは documents.title にも反映
-  if (currentUnitType === "title") {
-    const titleText = buildSelectedRawText();
+    await fetchJSON(`/api/paragraphs/${result.paragraph_id}/split_sentences`, {
+      method: "POST",
+    });
 
-    if (titleText) {
-      if (els.titleInput) {
-        els.titleInput.value = titleText;
-      }
-
-      await fetchJSON(`/api/docs/${state.docId}/title`, {
+    const translateResult = await fetchJSON(
+      `/api/paragraphs/${result.paragraph_id}/translate`,
+      {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          title: titleText,
-        }),
-      });
+      }
+    );
+
+    if (els.unitType.value === "title") {
+      const titleText = buildTextFromLines(bodyLines);
+      if (titleText) {
+        els.titleInput.value = titleText;
+        await fetchJSON(`/api/docs/${state.docId}/title`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            title: titleText,
+          }),
+        });
+      }
     }
-  }
 
-  if (!translateResult.deepl_enabled) {
-    showToast("保存しました。DeepLキー未設定のため翻訳は空です");
-  } else {
-    showToast("保存・文分割・翻訳まで完了しました");
-  }
+    if (!translateResult.deepl_enabled) {
+      showToast("保存しました。DeepLキー未設定のため翻訳は空です");
+    } else {
+      showToast("保存・文分割・翻訳まで完了しました");
+    }
 
-  els.orderIndex.value = Number(els.orderIndex.value || 0) + 1;
-  clearSelection();
-  await loadParagraphs();
-}
+    els.orderIndex.value = Number(els.orderIndex.value || 0) + 1;
+    clearSelection();
+    await loadParagraphs();
+  }
 
   function paragraphCard(paragraph) {
     const card = document.createElement("div");
-    card.className =
-      "rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3";
+    card.className = "rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3";
 
     card.innerHTML = `
       <div class="font-medium">#${paragraph.order_index} ${escapeHtml(paragraph.heading_text || "(no heading)")}</div>
@@ -460,8 +725,7 @@ function buildSelectedRawText() {
 
   function figureCard(figure) {
     const card = document.createElement("div");
-    card.className =
-      "rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3";
+    card.className = "rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3";
 
     const imgSrc = figure.image_path ? `/${figure.image_path}` : "";
 
@@ -519,121 +783,120 @@ function buildSelectedRawText() {
     if (state.mode !== "figure") return;
     if (!(event.shiftKey || event.altKey)) return;
 
-    event.preventDefault();
-    event.stopPropagation();
-
     const rect = els.figureOverlay.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
 
     state.drawing = {
-      mode: event.altKey ? "caption" : "image",
+      kind: event.shiftKey ? "image" : "caption",
       x0: x,
       y0: y,
       x1: x,
       y1: y,
     };
-
-    renderFigureBoxes();
   }
 
-  function moveDraw(event) {
-    if (state.mode !== "figure") return;
+  function updateDraw(event) {
     if (!state.drawing) return;
 
     const rect = els.figureOverlay.getBoundingClientRect();
     state.drawing.x1 = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
     state.drawing.y1 = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
 
-    renderFigureBoxes();
+    const bbox = {
+      x0: unscaleX(Math.min(state.drawing.x0, state.drawing.x1)),
+      y0: unscaleY(Math.min(state.drawing.y0, state.drawing.y1)),
+      x1: unscaleX(Math.max(state.drawing.x0, state.drawing.x1)),
+      y1: unscaleY(Math.max(state.drawing.y0, state.drawing.y1)),
+    };
 
-    const previewRect = document.createElement("div");
-    previewRect.className = `draw-rect${state.drawing.mode === "caption" ? " caption" : ""}`;
-
-    const x0 = Math.min(state.drawing.x0, state.drawing.x1);
-    const y0 = Math.min(state.drawing.y0, state.drawing.y1);
-    const x1 = Math.max(state.drawing.x0, state.drawing.x1);
-    const y1 = Math.max(state.drawing.y0, state.drawing.y1);
-
-    previewRect.style.left = `${x0}px`;
-    previewRect.style.top = `${y0}px`;
-    previewRect.style.width = `${x1 - x0}px`;
-    previewRect.style.height = `${y1 - y0}px`;
-
-    els.figureOverlay.appendChild(previewRect);
-  }
-
-  function endDraw() {
-    if (state.mode !== "figure") return;
-    if (!state.drawing) return;
-
-    const x0 = Math.min(state.drawing.x0, state.drawing.x1);
-    const y0 = Math.min(state.drawing.y0, state.drawing.y1);
-    const x1 = Math.max(state.drawing.x0, state.drawing.x1);
-    const y1 = Math.max(state.drawing.y0, state.drawing.y1);
-
-    if (x1 - x0 >= 5 && y1 - y0 >= 5) {
-      const bbox = {
-        x0: Number(unscaleX(x0).toFixed(2)),
-        y0: Number(unscaleY(y0).toFixed(2)),
-        x1: Number(unscaleX(x1).toFixed(2)),
-        y1: Number(unscaleY(y1).toFixed(2)),
-      };
-
-      if (state.drawing.mode === "caption") {
-        state.captionBBox = bbox;
-      } else {
-        state.imageBBox = bbox;
-      }
+    if (state.drawing.kind === "image") {
+      state.imageBBox = bbox;
+    } else {
+      state.captionBBox = bbox;
     }
 
-    state.drawing = null;
     updateFigureTexts();
     renderFigureBoxes();
   }
 
-  function bindEvents() {
-    els.pageSelect?.addEventListener("change", () => loadPage(els.pageSelect.value));
-    els.reloadBtn?.addEventListener("click", () => loadPage(state.pageNo));
+  function finishDraw() {
+    state.drawing = null;
+  }
 
-    els.saveTitleBtn?.addEventListener("click", saveTitle);
+  function bindEvents() {
+    els.saveTitleBtn?.addEventListener("click", () => {
+      saveTitle().catch((err) => showToast(err.message, true));
+    });
 
     els.lineModeBtn?.addEventListener("click", () => setMode("line"));
     els.figureModeBtn?.addEventListener("click", () => setMode("figure"));
 
-    els.saveParagraphBtn?.addEventListener("click", saveParagraph);
-    els.clearSelectionBtn?.addEventListener("click", clearSelection);
-    els.loadParagraphsBtn?.addEventListener("click", loadParagraphs);
+    els.targetHeadingBtn?.addEventListener("click", () => setSelectionTarget("heading"));
+    els.targetBodyBtn?.addEventListener("click", () => setSelectionTarget("body"));
 
-    els.saveFigureBtn?.addEventListener("click", saveFigure);
+    els.clearSelectionBtn?.addEventListener("click", clearSelection);
+    els.saveParagraphBtn?.addEventListener("click", () => {
+      saveParagraph().catch((err) => showToast(err.message, true));
+    });
+    els.loadParagraphsBtn?.addEventListener("click", () => {
+      loadParagraphs().catch((err) => showToast(err.message, true));
+    });
+
+    els.loadFiguresBtn?.addEventListener("click", () => {
+      loadFigures().catch((err) => showToast(err.message, true));
+    });
     els.clearFigureSelectionBtn?.addEventListener("click", clearFigureSelection);
-    els.loadFiguresBtn?.addEventListener("click", loadFigures);
+    els.saveFigureBtn?.addEventListener("click", () => {
+      saveFigure().catch((err) => showToast(err.message, true));
+    });
+
+    els.pageSelect?.addEventListener("change", () => {
+      loadPage(els.pageSelect.value).catch((err) => showToast(err.message, true));
+    });
+
+    els.reloadBtn?.addEventListener("click", () => {
+      loadPage(state.pageNo).catch((err) => showToast(err.message, true));
+    });
 
     window.addEventListener("resize", () => {
       syncOverlaySize();
       renderLines();
       renderFigureBoxes();
-      applyMode();
     });
 
-    els.figureOverlay?.addEventListener("mousedown", startDraw);
-    window.addEventListener("mousemove", moveDraw);
-    window.addEventListener("mouseup", endDraw);
+    els.lineOverlay?.addEventListener("pointerdown", handleLinePointerDown);
+    els.lineOverlay?.addEventListener("pointermove", handleLinePointerMove);
+    els.lineOverlay?.addEventListener("pointerup", handleLinePointerUp);
+    els.lineOverlay?.addEventListener("pointercancel", handleLinePointerUp);
+    els.lineOverlay?.addEventListener("dragstart", (event) => event.preventDefault());
+
+    els.figureOverlay?.addEventListener("mousedown", (event) => {
+      if (state.mode !== "figure") return;
+      if (!(event.shiftKey || event.altKey)) return;
+      event.preventDefault();
+      startDraw(event);
+    });
+
+    window.addEventListener("mousemove", (event) => {
+      if (!state.drawing) return;
+      updateDraw(event);
+    });
+
+    window.addEventListener("mouseup", () => {
+      if (!state.drawing) return;
+      finishDraw();
+    });
   }
 
   async function init() {
     bindEvents();
-    updateSelectionFields();
-    updateFigureTexts();
-
-    if (els.pageSelect) {
-      els.pageSelect.value = String(state.pageNo);
-    }
-
+    setSelectionTarget("body");
+    applyMode();
+    updateSelectionUI();
     await loadPage(state.pageNo);
     await loadParagraphs();
     await loadFigures();
-    applyMode();
   }
 
   init().catch((err) => {
