@@ -173,6 +173,35 @@
     return a.line_no - b.line_no;
   }
 
+  function getSelectedLines() {
+  if (!state.startLineId || !state.endLineId) return [];
+
+  const start = state.lines.find((x) => x.id === state.startLineId);
+  const end = state.lines.find((x) => x.id === state.endLineId);
+
+  if (!start || !end) return [];
+
+  let lo = start;
+  let hi = end;
+
+  if (compareLineOrder(lo, hi) > 0) {
+    [lo, hi] = [hi, lo];
+  }
+
+  return state.lines.filter((line) => {
+    return compareLineOrder(line, lo) >= 0 && compareLineOrder(line, hi) <= 0;
+  });
+}
+
+function buildSelectedRawText() {
+  return getSelectedLines()
+    .map((line) => String(line.text || "").trim())
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
   function isWithinSelectedRange(line) {
     if (!state.startLineId || !state.endLineId) return false;
 
@@ -338,48 +367,71 @@
   }
 
   async function saveParagraph() {
-    if (!state.startLineId || !state.endLineId) {
-      showToast("開始行と終了行を選択してください", true);
-      return;
-    }
-
-    const payload = {
-      start_line_id: Number(state.startLineId),
-      end_line_id: Number(state.endLineId),
-      order_index: Number(els.orderIndex.value || 0),
-      unit_type: els.unitType.value,
-      heading_text: els.headingText.value.trim(),
-    };
-
-    const result = await fetchJSON(`/api/docs/${state.docId}/paragraphs`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    await fetchJSON(`/api/paragraphs/${result.paragraph_id}/split_sentences`, {
-      method: "POST",
-    });
-
-    const translateResult = await fetchJSON(
-      `/api/paragraphs/${result.paragraph_id}/translate`,
-      {
-        method: "POST",
-      }
-    );
-
-    if (!translateResult.deepl_enabled) {
-      showToast("段落保存。DeepLキー未設定のため翻訳は空です");
-    } else {
-      showToast("段落保存・文分割・翻訳まで完了しました");
-    }
-
-    els.orderIndex.value = Number(els.orderIndex.value || 0) + 1;
-    clearSelection();
-    await loadParagraphs();
+  if (!state.startLineId || !state.endLineId) {
+    showToast("開始行と終了行を選択してください", true);
+    return;
   }
+
+  const currentUnitType = els.unitType.value;
+
+  const payload = {
+    start_line_id: Number(state.startLineId),
+    end_line_id: Number(state.endLineId),
+    order_index: Number(els.orderIndex.value || 0),
+    unit_type: currentUnitType,
+    heading_text: els.headingText.value.trim(),
+  };
+
+  const result = await fetchJSON(`/api/docs/${state.docId}/paragraphs`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  await fetchJSON(`/api/paragraphs/${result.paragraph_id}/split_sentences`, {
+    method: "POST",
+  });
+
+  const translateResult = await fetchJSON(
+    `/api/paragraphs/${result.paragraph_id}/translate`,
+    {
+      method: "POST",
+    }
+  );
+
+  // title として保存したときは documents.title にも反映
+  if (currentUnitType === "title") {
+    const titleText = buildSelectedRawText();
+
+    if (titleText) {
+      if (els.titleInput) {
+        els.titleInput.value = titleText;
+      }
+
+      await fetchJSON(`/api/docs/${state.docId}/title`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: titleText,
+        }),
+      });
+    }
+  }
+
+  if (!translateResult.deepl_enabled) {
+    showToast("保存しました。DeepLキー未設定のため翻訳は空です");
+  } else {
+    showToast("保存・文分割・翻訳まで完了しました");
+  }
+
+  els.orderIndex.value = Number(els.orderIndex.value || 0) + 1;
+  clearSelection();
+  await loadParagraphs();
+}
 
   function paragraphCard(paragraph) {
     const card = document.createElement("div");
