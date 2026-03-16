@@ -6,9 +6,10 @@ import {
   getSelectedLines,
 } from "./selection.js";
 import {
+  createPageStack,
+  renderAllLines,
   renderFigureBoxes,
   renderFigureList,
-  renderLines,
   renderParagraphList,
   refreshSelectionView,
   updateFigureTexts,
@@ -18,34 +19,61 @@ import { clearFigureSelection } from "./figure.js";
 import { clearSelectionState } from "./selection.js";
 import { fetchJSON, showToast, syncOverlaySize } from "./utils.js";
 
-export async function loadPage(pageNo) {
-  state.pageNo = Number(pageNo);
+async function loadSinglePage(pageNo) {
+  const page = state.pageDomByNo.get(Number(pageNo));
+  if (!page) return;
 
-  els.pageImage.src = `/api/docs/${state.docId}/pages/${state.pageNo}/preview?ts=${Date.now()}`;
+  page.img.src = `/api/docs/${state.docId}/pages/${pageNo}/preview?ts=${Date.now()}`;
 
   await new Promise((resolve, reject) => {
-    els.pageImage.onload = resolve;
-    els.pageImage.onerror = reject;
+    page.img.onload = resolve;
+    page.img.onerror = reject;
   });
 
-  const payload = await fetchJSON(`/api/docs/${state.docId}/pages/${state.pageNo}/lines`);
+  const payload = await fetchJSON(`/api/docs/${state.docId}/pages/${pageNo}/lines`);
 
-  state.pageNaturalWidth = payload.page_width || 1;
-  state.pageNaturalHeight = payload.page_height || 1;
-  state.lines = payload.lines || [];
+  state.pageNaturalSizeByPage.set(Number(pageNo), {
+    width: payload.page_width || 1,
+    height: payload.page_height || 1,
+  });
 
-  syncOverlaySize();
-  renderLines();
+  const lines = Array.isArray(payload.lines) ? payload.lines : [];
+  state.linesByPage.set(Number(pageNo), lines);
+
+  for (const line of lines) {
+    state.lineIndex.set(Number(line.id), line);
+  }
+
+  syncOverlaySize(pageNo);
+  renderAllLines();
   renderFigureBoxes();
   updateFigureTexts();
   applyMode();
   refreshSelectionView();
 }
 
+export async function loadAllPages() {
+  state.linesByPage.clear();
+  state.pageNaturalSizeByPage.clear();
+  state.lineIndex.clear();
+
+  createPageStack();
+
+  const tasks = state.pages.map((page) => loadSinglePage(page.page_no));
+  await Promise.all(tasks);
+
+  applyMode();
+  refreshSelectionView();
+  renderFigureBoxes();
+  updateFigureTexts();
+}
+
 export async function saveTitle() {
   await fetchJSON(`/api/docs/${state.docId}/title`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({
       title: els.titleInput.value.trim(),
     }),
@@ -76,12 +104,15 @@ export async function saveParagraph() {
     heading_line_ids: headingLines.map((line) => Number(line.id)),
     order_index: Number(els.orderIndex.value || 0),
     unit_type: els.unitType.value,
-    heading_text: els.headingText.value.trim() || buildTextFromLines(headingLines),
+    heading_text:
+      els.headingText.value.trim() || buildTextFromLines(headingLines),
   };
 
   const result = await fetchJSON(`/api/docs/${state.docId}/paragraphs`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify(payload),
   });
 
@@ -91,7 +122,9 @@ export async function saveParagraph() {
 
   const translateResult = await fetchJSON(
     `/api/paragraphs/${result.paragraph_id}/translate`,
-    { method: "POST" }
+    {
+      method: "POST",
+    }
   );
 
   if (els.unitType.value === "title") {
@@ -101,8 +134,12 @@ export async function saveParagraph() {
 
       await fetchJSON(`/api/docs/${state.docId}/title`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: titleText }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: titleText,
+        }),
       });
     }
   }
@@ -131,9 +168,14 @@ export async function saveFigure() {
     return;
   }
 
+  if (state.figurePageNo == null) {
+    showToast("figure の page が不明です", true);
+    return;
+  }
+
   const payload = {
     fig_no: els.figNoInput.value.trim() || "FIG",
-    page_no: state.pageNo,
+    page_no: Number(state.figurePageNo),
     image_bbox: state.imageBBox,
     caption_bbox: state.captionBBox,
     caption_text: els.captionTextInput.value.trim(),
@@ -141,7 +183,9 @@ export async function saveFigure() {
 
   await fetchJSON(`/api/docs/${state.docId}/figures`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify(payload),
   });
 

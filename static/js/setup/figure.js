@@ -1,25 +1,29 @@
-import { els } from "./dom.js";
 import { state } from "./state.js";
-import { unscaleX, unscaleY } from "./utils.js";
+import { naturalPointFromEvent, normalizeRect } from "./utils.js";
 
 export function clearFigureSelection() {
   state.imageBBox = null;
   state.captionBBox = null;
+  state.figurePageNo = null;
   state.drawing = null;
 }
 
-export function startFigureDraw(event) {
+export function startFigureDraw(event, pageNo, overlayEl) {
   if (state.mode !== "figure") return false;
-  if (!(event.shiftKey || event.altKey)) return false;
+  if (event.button !== 0) return false;
+  if (!event.shiftKey && !event.altKey) return false;
 
-  const rect = els.figureOverlay.getBoundingClientRect();
+  const kind = event.shiftKey ? "image" : "caption";
+  const point = naturalPointFromEvent(event, pageNo, overlayEl);
 
   state.drawing = {
-    kind: event.shiftKey ? "image" : "caption",
-    x0: event.clientX - rect.left,
-    y0: event.clientY - rect.top,
-    x1: event.clientX - rect.left,
-    y1: event.clientY - rect.top,
+    kind,
+    pageNo: Number(pageNo),
+    overlayEl,
+    x0: point.x,
+    y0: point.y,
+    x1: point.x,
+    y1: point.y,
   };
 
   return true;
@@ -28,38 +32,33 @@ export function startFigureDraw(event) {
 export function updateFigureDraw(event) {
   if (!state.drawing) return;
 
-  const rect = els.figureOverlay.getBoundingClientRect();
+  const point = naturalPointFromEvent(
+    event,
+    state.drawing.pageNo,
+    state.drawing.overlayEl
+  );
 
-  state.drawing.x1 = Math.max(0, Math.min(rect.width, event.clientX - rect.left));
-  state.drawing.y1 = Math.max(0, Math.min(rect.height, event.clientY - rect.top));
+  state.drawing.x1 = point.x;
+  state.drawing.y1 = point.y;
 }
 
 export function finishFigureDraw() {
   if (!state.drawing) return false;
 
-  const x0 = Math.min(state.drawing.x0, state.drawing.x1);
-  const y0 = Math.min(state.drawing.y0, state.drawing.y1);
-  const x1 = Math.max(state.drawing.x0, state.drawing.x1);
-  const y1 = Math.max(state.drawing.y0, state.drawing.y1);
+  const bbox = normalizeRect({
+    x0: state.drawing.x0,
+    y0: state.drawing.y0,
+    x1: state.drawing.x1,
+    y1: state.drawing.y1,
+  });
 
-  if (x1 - x0 < 5 || y1 - y0 < 5) {
-    state.drawing = null;
-    return false;
-  }
-
-  const bbox = {
-    x0: Number(unscaleX(x0).toFixed(2)),
-    y0: Number(unscaleY(y0).toFixed(2)),
-    x1: Number(unscaleX(x1).toFixed(2)),
-    y1: Number(unscaleY(y1).toFixed(2)),
-  };
-
-  if (state.drawing.kind === "caption") {
-    state.captionBBox = bbox;
-  } else {
+  if (state.drawing.kind === "image") {
     state.imageBBox = bbox;
+  } else {
+    state.captionBBox = bbox;
   }
 
+  state.figurePageNo = Number(state.drawing.pageNo);
   state.drawing = null;
   return true;
 }

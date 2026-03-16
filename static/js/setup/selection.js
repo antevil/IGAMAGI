@@ -10,7 +10,15 @@ export function sortLines(lines) {
 }
 
 export function getLineById(id) {
-  return state.lines.find((line) => Number(line.id) === Number(id)) || null;
+  return state.lineIndex.get(Number(id)) || null;
+}
+
+export function getLinesByPage(pageNo) {
+  return state.linesByPage.get(Number(pageNo)) || [];
+}
+
+export function getAllLines() {
+  return sortLines([...state.lineIndex.values()]);
 }
 
 export function getSelectedIdArray(target) {
@@ -21,7 +29,6 @@ export function getSelectedIdArray(target) {
 
 export function setSelectedIdArray(target, ids) {
   const uniqueIds = [...new Set(ids.map((x) => Number(x)))];
-
   if (target === "heading") {
     state.headingSelectedLineIds = uniqueIds;
   } else {
@@ -35,9 +42,7 @@ export function isLineSelected(lineId, target) {
 
 export function getSelectedLines(target) {
   const ids = getSelectedIdArray(target);
-  return sortLines(
-    ids.map((id) => getLineById(id)).filter(Boolean)
-  );
+  return sortLines(ids.map((id) => getLineById(id)).filter(Boolean));
 }
 
 export function buildTextFromLines(lines) {
@@ -70,10 +75,7 @@ export function toggleLineSelection(lineId, target = state.selectionTarget) {
   const id = Number(lineId);
 
   if (current.includes(id)) {
-    setSelectedIdArray(
-      target,
-      current.filter((x) => x !== id)
-    );
+    setSelectedIdArray(target, current.filter((x) => x !== id));
   } else {
     setSelectedIdArray(target, [...current, id]);
   }
@@ -93,6 +95,8 @@ export function clearSelectionState() {
   state.lineDrag.pointerId = null;
   state.lineDrag.startedOnLineId = null;
   state.lineDrag.captureStarted = false;
+  state.lineDrag.pageNo = null;
+  state.lineDrag.overlayEl = null;
 }
 
 export function setSelectionTarget(target) {

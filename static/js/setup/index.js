@@ -3,6 +3,7 @@ import { state } from "./state.js";
 import {
   addLinesToSelection,
   clearSelectionState,
+  getLinesByPage,
   setSelectionTarget,
   toggleLineSelection,
 } from "./selection.js";
@@ -20,8 +21,8 @@ import {
   updateFigureTexts,
 } from "./render.js";
 import {
+  loadAllPages,
   loadFigures,
-  loadPage,
   loadParagraphs,
   saveFigure,
   saveParagraph,
@@ -54,6 +55,7 @@ function clearFigure() {
 }
 
 function getIntersectingLineIdsFromDrag() {
+  const pageNo = Number(state.lineDrag.pageNo);
   const dragRect = normalizeRect({
     x0: state.lineDrag.x0,
     y0: state.lineDrag.y0,
@@ -62,13 +64,12 @@ function getIntersectingLineIdsFromDrag() {
   });
 
   const ids = [];
-
-  for (const line of state.lines) {
+  for (const line of getLinesByPage(pageNo)) {
     const lineRect = {
-      x0: scaleX(line.x0),
-      y0: scaleY(line.y0),
-      x1: scaleX(line.x1),
-      y1: scaleY(line.y1),
+      x0: scaleX(pageNo, line.x0),
+      y0: scaleY(pageNo, line.y0),
+      x1: scaleX(pageNo, line.x1),
+      y1: scaleY(pageNo, line.y1),
     };
 
     if (rectIntersects(dragRect, lineRect)) {
@@ -83,7 +84,9 @@ function handleLinePointerDown(event) {
   if (state.mode !== "line") return;
   if (event.button !== 0) return;
 
-  const point = overlayPointFromEvent(event, els.lineOverlay);
+  const overlayEl = event.currentTarget;
+  const pageNo = Number(overlayEl.dataset.pageNo);
+  const point = overlayPointFromEvent(event, overlayEl);
   const lineBox = event.target.closest(".line-box");
 
   state.lineDrag.active = true;
@@ -95,13 +98,20 @@ function handleLinePointerDown(event) {
   state.lineDrag.y1 = point.y;
   state.lineDrag.pointerId = event.pointerId ?? 1;
   state.lineDrag.startedOnLineId = lineBox ? Number(lineBox.dataset.lineId) : null;
+  state.lineDrag.pageNo = pageNo;
+  state.lineDrag.overlayEl = overlayEl;
 }
 
 function handleLinePointerMove(event) {
   if (!state.lineDrag.active) return;
   if (state.mode !== "line") return;
 
-  const point = overlayPointFromEvent(event, els.lineOverlay);
+  const overlayEl = event.currentTarget;
+  const pageNo = Number(overlayEl.dataset.pageNo);
+
+  if (Number(state.lineDrag.pageNo) !== pageNo) return;
+
+  const point = overlayPointFromEvent(event, overlayEl);
   state.lineDrag.x1 = point.x;
   state.lineDrag.y1 = point.y;
 
@@ -113,7 +123,7 @@ function handleLinePointerMove(event) {
   }
 
   if (state.lineDrag.moved && !state.lineDrag.captureStarted) {
-    els.lineOverlay.setPointerCapture?.(state.lineDrag.pointerId);
+    overlayEl.setPointerCapture?.(state.lineDrag.pointerId);
     state.lineDrag.captureStarted = true;
   }
 
@@ -122,6 +132,11 @@ function handleLinePointerMove(event) {
 
 function handleLinePointerUp(event) {
   if (!state.lineDrag.active) return;
+
+  const overlayEl = event.currentTarget;
+  const pageNo = Number(overlayEl.dataset.pageNo);
+
+  if (Number(state.lineDrag.pageNo) !== pageNo) return;
 
   const pointerId = state.lineDrag.pointerId;
   const moved = state.lineDrag.moved;
@@ -142,14 +157,38 @@ function handleLinePointerUp(event) {
   state.lineDrag.pointerId = null;
   state.lineDrag.startedOnLineId = null;
   state.lineDrag.captureStarted = false;
+  state.lineDrag.pageNo = null;
+  state.lineDrag.overlayEl = null;
 
   if (didCapture && pointerId != null) {
-    els.lineOverlay.releasePointerCapture?.(pointerId);
+    overlayEl.releasePointerCapture?.(pointerId);
   }
 
   refreshSelectionView();
   event.preventDefault();
   event.stopPropagation();
+}
+
+function bindPageOverlayEvents() {
+  for (const page of state.pageDomByNo.values()) {
+    page.lineOverlay.addEventListener("pointerdown", handleLinePointerDown);
+    page.lineOverlay.addEventListener("pointermove", handleLinePointerMove);
+    page.lineOverlay.addEventListener("pointerup", handleLinePointerUp);
+    page.lineOverlay.addEventListener("pointercancel", handleLinePointerUp);
+    page.lineOverlay.addEventListener("dragstart", (event) => event.preventDefault());
+
+    page.figureOverlay.addEventListener("mousedown", (event) => {
+      const started = startFigureDraw(
+        event,
+        Number(page.figureOverlay.dataset.pageNo),
+        page.figureOverlay
+      );
+      if (!started) return;
+
+      event.preventDefault();
+      renderFigureBoxes();
+    });
+  }
 }
 
 function bindEvents() {
@@ -191,30 +230,27 @@ function bindEvents() {
   });
 
   els.pageSelect?.addEventListener("change", () => {
-    loadPage(els.pageSelect.value).catch((err) => showToast(err.message, true));
+    const pageNo = Number(els.pageSelect.value);
+    const page = state.pageDomByNo.get(pageNo);
+    page?.block?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
   });
 
   els.reloadBtn?.addEventListener("click", () => {
-    loadPage(state.pageNo).catch((err) => showToast(err.message, true));
+    loadAllPages()
+      .then(() => {
+        bindPageOverlayEvents();
+      })
+      .catch((err) => showToast(err.message, true));
   });
 
   window.addEventListener("resize", () => {
-    syncOverlaySize();
+    for (const pageMeta of state.pages) {
+      syncOverlaySize(pageMeta.page_no);
+    }
     refreshSelectionView();
-    renderFigureBoxes();
-  });
-
-  els.lineOverlay?.addEventListener("pointerdown", handleLinePointerDown);
-  els.lineOverlay?.addEventListener("pointermove", handleLinePointerMove);
-  els.lineOverlay?.addEventListener("pointerup", handleLinePointerUp);
-  els.lineOverlay?.addEventListener("pointercancel", handleLinePointerUp);
-  els.lineOverlay?.addEventListener("dragstart", (event) => event.preventDefault());
-
-  els.figureOverlay?.addEventListener("mousedown", (event) => {
-    const started = startFigureDraw(event);
-    if (!started) return;
-
-    event.preventDefault();
     renderFigureBoxes();
   });
 
@@ -241,11 +277,13 @@ async function init() {
   refreshSelectionView();
   updateFigureTexts();
 
+  await loadAllPages();
+  bindPageOverlayEvents();
+
   if (els.pageSelect) {
-    els.pageSelect.value = String(state.pageNo);
+    els.pageSelect.value = String(state.pageNo || 0);
   }
 
-  await loadPage(state.pageNo);
   await loadParagraphs();
   await loadFigures();
 }

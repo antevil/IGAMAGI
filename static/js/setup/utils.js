@@ -1,80 +1,53 @@
 import { els } from "./dom.js";
 import { state } from "./state.js";
 
+export async function fetchJSON(url, options = {}) {
+  const response = await fetch(url, {
+    credentials: "same-origin",
+    ...options,
+  });
+
+  const contentType = response.headers.get("content-type") || "";
+  const isJson = contentType.includes("application/json");
+
+  if (!response.ok) {
+    if (isJson) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || data.message || `HTTP ${response.status}`);
+    }
+
+    const text = await response.text().catch(() => "");
+    throw new Error(text || `HTTP ${response.status}`);
+  }
+
+  if (!isJson) {
+    return null;
+  }
+
+  return response.json();
+}
+
 export function showToast(message, isError = false) {
   if (!els.toast) return;
 
   els.toast.textContent = message;
   els.toast.classList.remove("hidden");
-  els.toast.classList.toggle("border-rose-700", isError);
-  els.toast.classList.toggle("bg-rose-950", isError);
-  els.toast.classList.toggle("border-zinc-700", !isError);
-  els.toast.classList.toggle("bg-zinc-900", !isError);
+  els.toast.style.borderColor = isError ? "rgb(190 24 93)" : "rgb(63 63 70)";
+  els.toast.style.background = isError ? "rgb(76 5 25)" : "rgb(24 24 27)";
 
   clearTimeout(showToast._timer);
   showToast._timer = setTimeout(() => {
     els.toast.classList.add("hidden");
-  }, 2500);
+  }, 2600);
 }
 
-export async function fetchJSON(url, options = {}) {
-  const res = await fetch(url, options);
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || `HTTP ${res.status}`);
-  }
-  return res.json();
-}
-
-export function escapeHtml(text) {
-  return String(text ?? "")
+export function escapeHtml(value) {
+  return String(value ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
-}
-
-export function getImageRect() {
-  return els.pageImage.getBoundingClientRect();
-}
-
-export function syncOverlaySize() {
-  const rect = getImageRect();
-
-  els.lineOverlay.style.width = `${rect.width}px`;
-  els.lineOverlay.style.height = `${rect.height}px`;
-
-  els.figureOverlay.style.width = `${rect.width}px`;
-  els.figureOverlay.style.height = `${rect.height}px`;
-}
-
-export function scaleX(x) {
-  const rect = getImageRect();
-  return (x / state.pageNaturalWidth) * rect.width;
-}
-
-export function scaleY(y) {
-  const rect = getImageRect();
-  return (y / state.pageNaturalHeight) * rect.height;
-}
-
-export function unscaleX(x) {
-  const rect = getImageRect();
-  return (x / rect.width) * state.pageNaturalWidth;
-}
-
-export function unscaleY(y) {
-  const rect = getImageRect();
-  return (y / rect.height) * state.pageNaturalHeight;
-}
-
-export function overlayPointFromEvent(event, overlayEl) {
-  const rect = overlayEl.getBoundingClientRect();
-  return {
-    x: Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
-    y: Math.max(0, Math.min(rect.height, event.clientY - rect.top)),
-  };
 }
 
 export function normalizeRect(rect) {
@@ -93,4 +66,81 @@ export function rectIntersects(a, b) {
     a.y1 < b.y0 ||
     a.y0 > b.y1
   );
+}
+
+export function getPageDom(pageNo) {
+  return state.pageDomByNo.get(Number(pageNo)) || null;
+}
+
+export function getNaturalSize(pageNo) {
+  return state.pageNaturalSizeByPage.get(Number(pageNo)) || {
+    width: 1,
+    height: 1,
+  };
+}
+
+export function syncOverlaySize(pageNo) {
+  const page = getPageDom(pageNo);
+  if (!page?.img || !page?.lineOverlay || !page?.figureOverlay) return;
+
+  const rect = page.img.getBoundingClientRect();
+  const width = rect.width;
+  const height = rect.height;
+
+  page.lineOverlay.style.width = `${width}px`;
+  page.lineOverlay.style.height = `${height}px`;
+  page.figureOverlay.style.width = `${width}px`;
+  page.figureOverlay.style.height = `${height}px`;
+}
+
+export function scaleX(pageNo, x) {
+  const page = getPageDom(pageNo);
+  if (!page?.img) return x;
+
+  const natural = getNaturalSize(pageNo);
+  const displayWidth = page.img.getBoundingClientRect().width || page.img.width || 1;
+  return (Number(x) / Math.max(1, natural.width)) * displayWidth;
+}
+
+export function scaleY(pageNo, y) {
+  const page = getPageDom(pageNo);
+  if (!page?.img) return y;
+
+  const natural = getNaturalSize(pageNo);
+  const displayHeight = page.img.getBoundingClientRect().height || page.img.height || 1;
+  return (Number(y) / Math.max(1, natural.height)) * displayHeight;
+}
+
+export function unscaleX(pageNo, x) {
+  const page = getPageDom(pageNo);
+  if (!page?.img) return x;
+
+  const natural = getNaturalSize(pageNo);
+  const displayWidth = page.img.getBoundingClientRect().width || page.img.width || 1;
+  return (Number(x) / Math.max(1, displayWidth)) * natural.width;
+}
+
+export function unscaleY(pageNo, y) {
+  const page = getPageDom(pageNo);
+  if (!page?.img) return y;
+
+  const natural = getNaturalSize(pageNo);
+  const displayHeight = page.img.getBoundingClientRect().height || page.img.height || 1;
+  return (Number(y) / Math.max(1, displayHeight)) * natural.height;
+}
+
+export function overlayPointFromEvent(event, overlayEl) {
+  const rect = overlayEl.getBoundingClientRect();
+  return {
+    x: event.clientX - rect.left,
+    y: event.clientY - rect.top,
+  };
+}
+
+export function naturalPointFromEvent(event, pageNo, overlayEl) {
+  const p = overlayPointFromEvent(event, overlayEl);
+  return {
+    x: unscaleX(pageNo, p.x),
+    y: unscaleY(pageNo, p.y),
+  };
 }

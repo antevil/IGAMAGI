@@ -3,9 +3,12 @@ import { boot } from "./dom.js";
 export const state = {
   docId: boot.docId,
   pageNo: boot.initialPageNo || 0,
-  lines: [],
-  pageNaturalWidth: 1,
-  pageNaturalHeight: 1,
+  pages: Array.isArray(boot.pages) ? boot.pages : [],
+
+  linesByPage: new Map(),
+  pageNaturalSizeByPage: new Map(),
+  pageDomByNo: new Map(),
+  lineIndex: new Map(),
 
   selectionTarget: "body",
   headingSelectedLineIds: [],
@@ -21,15 +24,17 @@ export const state = {
     pointerId: null,
     startedOnLineId: null,
     captureStarted: false,
+    pageNo: null,
+    overlayEl: null,
   },
 
   imageBBox: null,
   captionBBox: null,
+  figurePageNo: null,
   drawing: null,
 
   paragraphCache: [],
   figureCache: [],
-
   mode: "line",
 };
 

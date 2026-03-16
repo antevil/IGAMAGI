@@ -9,10 +9,7 @@ export const els = {
   titleInput: $("titleInput"),
   saveTitleBtn: $("saveTitleBtn"),
 
-  pageImage: $("pageImage"),
-  pdfWrap: $("pdfWrap"),
-  lineOverlay: $("lineOverlay"),
-  figureOverlay: $("figureOverlay"),
+  pdfStack: $("pdfStack"),
 
   lineModeBtn: $("lineModeBtn"),
   figureModeBtn: $("figureModeBtn"),
