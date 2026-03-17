@@ -25,12 +25,24 @@ def parse_bbox(raw: str | None) -> dict[str, float] | None:
     }
 
 
-def save_figure_crop(doc_id: int, figure_id: int, pdf_path: str | Path, page_no: int, bbox_raw: str) -> str:
+def save_figure_crop(
+    doc_id: int,
+    figure_id: int,
+    pdf_path: str | Path,
+    page_no: int,
+    bbox_raw: str,
+) -> str:
     bbox = parse_bbox(bbox_raw)
     if bbox is None:
         raise ValueError("image_bbox is required")
+
     rect = fitz.Rect(bbox["x0"], bbox["y0"], bbox["x1"], bbox["y1"])
     png_bytes = crop_page_rect_to_png_bytes(pdf_path, page_no, rect)
-    out_path = FIGURE_DIR / f"doc_{doc_id}_fig_{figure_id}.png"
+
+    FIGURE_DIR.mkdir(parents=True, exist_ok=True)
+
+    filename = f"doc_{doc_id}_fig_{figure_id}.png"
+    out_path = FIGURE_DIR / filename
     out_path.write_bytes(png_bytes)
-    return str(out_path.relative_to(Path(__file__).resolve().parents[1]))
+
+    return f"/static/figures/{filename}"

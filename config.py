@@ -7,7 +7,7 @@ BASE_DIR = Path(__file__).resolve().parent
 INSTANCE_DIR = BASE_DIR / "instance"
 STORAGE_DIR = BASE_DIR / "storage"
 PDF_DIR = STORAGE_DIR / "pdfs"
-FIGURE_DIR = STORAGE_DIR / "figures"
+FIGURE_DIR = BASE_DIR / "static" / "figures"
 PREVIEW_DIR = STORAGE_DIR / "previews"
 DB_PATH = INSTANCE_DIR / "app.db"
 

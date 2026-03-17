@@ -107,7 +107,7 @@
   function figureCard(figure) {
     const card = document.createElement("div");
     card.className = "rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3";
-    const imgSrc = figure.image_path ? `/${figure.image_path}` : "";
+    const imgSrc = figure.image_path || "";
 
     card.innerHTML = `
       <div>
