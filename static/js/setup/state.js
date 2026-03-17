@@ -32,6 +32,7 @@ export const state = {
   captionBBox: null,
   figurePageNo: null,
   drawing: null,
+  captionSelectedLineIds: [],
 
   paragraphCache: [],
   figureCache: [],

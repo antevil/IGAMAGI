@@ -163,6 +163,7 @@ export async function loadFigures() {
 }
 
 export async function saveFigure() {
+    syncCaptionFields(els);
   if (!state.imageBBox) {
     showToast("図本体のbboxを選択してください", true);
     return;

@@ -37,6 +37,12 @@ import {
   showToast,
   syncOverlaySize,
 } from "./utils.js";
+import {
+  addCaptionLinesToSelection,
+  clearCaptionSelectionState,
+  syncCaptionFields,
+  toggleCaptionLineSelection,
+} from "./caption_selection.js";
 
 function setMode(mode) {
   state.mode = mode;
@@ -50,6 +56,8 @@ function clearSelection() {
 
 function clearFigure() {
   clearFigureSelection();
+  clearCaptionSelectionState();
+  syncCaptionFields(els);
   updateFigureTexts();
   renderFigureBoxes();
 }
@@ -81,7 +89,8 @@ function getIntersectingLineIdsFromDrag() {
 }
 
 function handleLinePointerDown(event) {
-  if (state.mode !== "line") return;
+  const captionMode = state.mode === "figure";
+  if (state.mode !== "line" && !captionMode) return;
   if (event.button !== 0) return;
 
   const overlayEl = event.currentTarget;
@@ -104,11 +113,12 @@ function handleLinePointerDown(event) {
 
 function handleLinePointerMove(event) {
   if (!state.lineDrag.active) return;
-  if (state.mode !== "line") return;
+
+  const captionMode = state.mode === "figure";
+  if (state.mode !== "line" && !captionMode) return;
 
   const overlayEl = event.currentTarget;
   const pageNo = Number(overlayEl.dataset.pageNo);
-
   if (Number(state.lineDrag.pageNo) !== pageNo) return;
 
   const point = overlayPointFromEvent(event, overlayEl);
@@ -135,7 +145,6 @@ function handleLinePointerUp(event) {
 
   const overlayEl = event.currentTarget;
   const pageNo = Number(overlayEl.dataset.pageNo);
-
   if (Number(state.lineDrag.pageNo) !== pageNo) return;
 
   const pointerId = state.lineDrag.pointerId;
@@ -143,13 +152,25 @@ function handleLinePointerUp(event) {
   const startedOnLineId = state.lineDrag.startedOnLineId;
   const didCapture = state.lineDrag.captureStarted;
 
+  const captionMode = state.mode === "figure";
+
   if (moved) {
     const ids = getIntersectingLineIdsFromDrag();
     if (ids.length) {
-      addLinesToSelection(ids);
+      if (captionMode) {
+        addCaptionLinesToSelection(ids);
+        syncCaptionFields(els);
+      } else {
+        addLinesToSelection(ids);
+      }
     }
   } else if (startedOnLineId != null) {
-    toggleLineSelection(startedOnLineId);
+    if (captionMode) {
+      toggleCaptionLineSelection(startedOnLineId);
+      syncCaptionFields(els);
+    } else {
+      toggleLineSelection(startedOnLineId);
+    }
   }
 
   state.lineDrag.active = false;
