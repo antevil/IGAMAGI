@@ -10,13 +10,11 @@ export function clearFigureSelection() {
 export function startFigureDraw(event, pageNo, overlayEl) {
   if (state.mode !== "figure") return false;
   if (event.button !== 0) return false;
-  if (!event.shiftKey && !event.altKey) return false;
 
-  const kind = event.shiftKey ? "image" : "caption";
   const point = naturalPointFromEvent(event, pageNo, overlayEl);
 
   state.drawing = {
-    kind,
+    kind: "image",
     pageNo: Number(pageNo),
     overlayEl,
     x0: point.x,
@@ -51,9 +49,8 @@ export function finishFigureDraw() {
     y1: state.drawing.y1,
   });
 
-  if (state.drawing.kind === "image") {
-    state.imageBBox = bbox;
-  } 
+  
+  state.imageBBox = bbox;
   state.figurePageNo = Number(state.drawing.pageNo);
   state.drawing = null;
   return true;
