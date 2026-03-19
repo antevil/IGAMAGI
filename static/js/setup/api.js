@@ -175,8 +175,6 @@ export async function saveFigure() {
     fig_no: els.figNoInput.value.trim() || "FIG",
     page_no: Number(state.figurePageNo),
     image_bbox: state.imageBBox,
-    caption_bbox: state.captionBBox,
-    caption_text: els.captionTextInput.value.trim(),
   };
 
   await fetchJSON(`/api/docs/${state.docId}/figures`, {

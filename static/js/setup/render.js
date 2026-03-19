@@ -259,12 +259,6 @@ export function updateFigureTexts() {
       state.imageBBox ? JSON.stringify(state.imageBBox) : "未選択"
     }`;
   }
-
-  if (els.captionBboxText) {
-    els.captionBboxText.textContent = `caption_bbox: ${
-      state.captionBBox ? JSON.stringify(state.captionBBox) : "未選択"
-    }`;
-  }
 }
 
 function paragraphCard(paragraph) {
@@ -285,22 +279,6 @@ export function renderParagraphList() {
   for (const paragraph of state.paragraphCache) {
     els.paragraphList.appendChild(paragraphCard(paragraph));
   }
-}
-
-function figureCard(figure) {
-  const card = document.createElement("div");
-  card.className = "rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3";
-
-  const imgSrc = figure.image_path ? `/${figure.image_path}` : "";
-
-  card.innerHTML = `
-    <div class="text-base font-semibold">${escapeHtml(figure.fig_no)}</div>
-    <div class="text-sm text-zinc-400">page ${figure.page_no + 1}</div>
-    ${imgSrc ? `<img src="${imgSrc}" alt="${escapeHtml(figure.fig_no)}" class="rounded-lg border border-zinc-800" />` : ""}
-    <div class="text-sm text-zinc-200 whitespace-pre-wrap">${escapeHtml(figure.caption_text || "")}</div>
-  `;
-
-  return card;
 }
 
 export function renderFigureList() {

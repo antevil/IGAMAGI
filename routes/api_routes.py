@@ -273,14 +273,12 @@ def create_figure(doc_id: int):
     fig_no = str(payload.get("fig_no") or "").strip() or "FIG"
     page_no = int(payload["page_no"])
     image_bbox_payload = payload.get("image_bbox") or {}
-    caption_bbox_payload = payload.get("caption_bbox") or None
-    # Phase 2 で caption_text 手入力は消す予定。
-    # いまは後方互換のため残している。
-    caption_text = (payload.get("caption_text") or "").strip() or None
-
     # Phase 1 の土台:
     # caption line ids が来たら、将来はこちらを正として扱えるようにする
     caption_line_ids = [int(x) for x in (payload.get("caption_line_ids") or [])]
+
+    if not caption_line_ids:
+        abort(400, "caption_line_ids is required")
 
     image_bbox = bbox_json(
         float(image_bbox_payload["x0"]),
@@ -288,15 +286,6 @@ def create_figure(doc_id: int):
         float(image_bbox_payload["x1"]),
         float(image_bbox_payload["y1"]),
     )
-    caption_bbox = None #ここも削除予定
-    if caption_bbox_payload:
-        caption_bbox = bbox_json(
-            float(caption_bbox_payload["x0"]),
-            float(caption_bbox_payload["y0"]),
-            float(caption_bbox_payload["x1"]),
-            float(caption_bbox_payload["y1"]),
-        )
-
     # 2. caption_line_ids があれば caption_text を組み立て直す
     if caption_line_ids:
         placeholders = ",".join(["?"] * len(caption_line_ids))
@@ -315,10 +304,10 @@ def create_figure(doc_id: int):
 
     figure_id = db.execute(
         """
-        INSERT INTO figures (doc_id, fig_no, page_no, image_bbox, caption_bbox, caption_text, image_path)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO figures (doc_id, fig_no, page_no, image_bbox, caption_text, image_path)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (doc_id, fig_no, page_no, image_bbox, caption_bbox, caption_text, None),
+        (doc_id, fig_no, page_no, image_bbox, caption_text, None),
     )
 
     # 4. caption に使った lines に usage 情報を書き込む

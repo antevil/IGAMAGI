@@ -87,7 +87,6 @@ CREATE TABLE IF NOT EXISTS figures (
   fig_no          TEXT NOT NULL,
   page_no         INTEGER NOT NULL,
   image_bbox      TEXT NOT NULL,
-  caption_bbox    TEXT,
   caption_text    TEXT,
   image_path      TEXT,
   created_at      TEXT NOT NULL DEFAULT (datetime('now')),

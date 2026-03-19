@@ -104,21 +104,6 @@
     }
   }
 
-  function figureCard(figure) {
-    const card = document.createElement("div");
-    card.className = "rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3";
-    const imgSrc = figure.image_path || "";
-
-    card.innerHTML = `
-      <div>
-        <div class="font-medium">${escapeHtml(figure.fig_no)}</div>
-        <div class="text-xs text-zinc-400">page ${figure.page_no + 1}</div>
-      </div>
-      ${imgSrc ? `<img src="${imgSrc}" alt="${escapeHtml(figure.fig_no)}" class="w-full rounded-lg border border-zinc-800 bg-white">` : ""}
-      <div class="text-sm leading-6 text-zinc-300 whitespace-pre-wrap">${escapeHtml(figure.caption_text || "")}</div>
-    `;
-    return card;
-  }
 
   async function loadFigures() {
     state.figureCache = await fetchJSON(`/api/docs/${state.docId}/figures`);
