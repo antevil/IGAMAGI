@@ -34,6 +34,15 @@ def get_pages(doc_id: int):
 
 @api_bp.get("/docs/<int:doc_id>/pages/<int:page_no>/lines")
 def get_page_lines(doc_id: int, page_no: int):
+    """
+    setup 画面用に、そのページの line 一覧を返すAPI。
+
+    役割:
+    - ページの自然サイズを返す
+    - line 座標と text を返す
+    - usage_type / usage_ref_id を返して、
+      フロントで「使用済み line の色分け」ができるようにする
+    """
     page_row = db.fetch_one(
         """
         SELECT page_width, page_height
@@ -47,7 +56,10 @@ def get_page_lines(doc_id: int, page_no: int):
 
     lines = db.fetch_all(
         """
-        SELECT id, doc_id, page_no, line_no, text, x0, y0, x1, y1
+        SELECT
+            id, doc_id, page_no, line_no, text,
+            x0, y0, x1, y1,
+            usage_type, usage_ref_id
         FROM lines
         WHERE doc_id = ? AND page_no = ?
         ORDER BY line_no
@@ -84,15 +96,52 @@ def save_title(doc_id: int):
     db.execute("UPDATE documents SET title = ? WHERE id = ?", (title, doc_id))
     return jsonify({"ok": True, "title": title})
 
+def _set_lines_usage(line_ids: list[int], usage_type: str, usage_ref_id: int) -> None:
+    """
+    line の使用状態をまとめて更新する関数。
+
+    役割:
+    - paragraph / figure を保存したあとに、
+      関連する lines に usage_type と usage_ref_id を書き込む
+    - setup 画面で「この line はもう使われたか」を判定しやすくする
+
+    例:
+    - paragraph の heading 行 -> usage_type = "paragraph_heading"
+    - paragraph の body 行    -> usage_type = "paragraph_body"
+    - figure の caption 行    -> usage_type = "figure_caption"
+    """
+    if not line_ids:
+        return
+
+    placeholders = ",".join(["?"] * len(line_ids))
+    db.execute(
+        f"""
+        UPDATE lines
+        SET usage_type = ?, usage_ref_id = ?
+        WHERE id IN ({placeholders})
+        """,
+        (usage_type, usage_ref_id, *line_ids),
+    )
 
 @api_bp.post("/docs/<int:doc_id>/paragraphs")
 def create_paragraph(doc_id: int):
+    """
+    paragraph を1件保存するAPI。
+
+    役割:
+    - body の line 群から raw_text / normalized_text を組み立てる
+    - heading の line 群から heading_text を組み立てる
+    - paragraphs テーブルに保存する
+    - 保存に使った lines に usage 情報を書き込む
+    """
     payload = request.get_json(force=True)
 
+# フロントから受け取った line id 一覧
     selected_line_ids = [int(x) for x in (payload.get("selected_line_ids") or [])]
     heading_line_ids = [int(x) for x in (payload.get("heading_line_ids") or [])]
 
     order_index = int(payload["order_index"])
+    # 将来 title / abstract などを区別したい時のための種別
     unit_type = (payload.get("unit_type") or "body").strip() or "body"
 
     explicit_heading_text = (payload.get("heading_text") or "").strip() #削除予定。
@@ -162,6 +211,8 @@ def create_paragraph(doc_id: int):
             normalized_text,
         ),
     )
+    _set_lines_usage(heading_line_ids, "paragraph_heading", paragraph_id)
+    _set_lines_usage(selected_line_ids, "paragraph_body", paragraph_id)
 
     return jsonify({"ok": True, "paragraph_id": paragraph_id})
 
@@ -223,7 +274,13 @@ def create_figure(doc_id: int):
     page_no = int(payload["page_no"])
     image_bbox_payload = payload.get("image_bbox") or {}
     caption_bbox_payload = payload.get("caption_bbox") or None
+    # Phase 2 で caption_text 手入力は消す予定。
+    # いまは後方互換のため残している。
     caption_text = (payload.get("caption_text") or "").strip() or None
+
+    # Phase 1 の土台:
+    # caption line ids が来たら、将来はこちらを正として扱えるようにする
+    caption_line_ids = [int(x) for x in (payload.get("caption_line_ids") or [])]
 
     image_bbox = bbox_json(
         float(image_bbox_payload["x0"]),
@@ -231,7 +288,7 @@ def create_figure(doc_id: int):
         float(image_bbox_payload["x1"]),
         float(image_bbox_payload["y1"]),
     )
-    caption_bbox = None
+    caption_bbox = None #ここも削除予定
     if caption_bbox_payload:
         caption_bbox = bbox_json(
             float(caption_bbox_payload["x0"]),
@@ -240,6 +297,22 @@ def create_figure(doc_id: int):
             float(caption_bbox_payload["y1"]),
         )
 
+    # 2. caption_line_ids があれば caption_text を組み立て直す
+    if caption_line_ids:
+        placeholders = ",".join(["?"] * len(caption_line_ids))
+        caption_lines = db.fetch_all(
+            f"""
+            SELECT *
+            FROM lines
+            WHERE doc_id = ?
+              AND id IN ({placeholders})
+            ORDER BY page_no, line_no
+            """,
+            (doc_id, *caption_line_ids),
+        )
+        if caption_lines:
+            caption_text = build_paragraph_text(caption_lines).strip() or None
+
     figure_id = db.execute(
         """
         INSERT INTO figures (doc_id, fig_no, page_no, image_bbox, caption_bbox, caption_text, image_path)
@@ -247,6 +320,9 @@ def create_figure(doc_id: int):
         """,
         (doc_id, fig_no, page_no, image_bbox, caption_bbox, caption_text, None),
     )
+
+    # 4. caption に使った lines に usage 情報を書き込む
+    _set_lines_usage(caption_line_ids, "figure_caption", figure_id)
 
     doc = db.fetch_one("SELECT * FROM documents WHERE id = ?", (doc_id,))
     image_path = save_figure_crop(doc_id, figure_id, doc["pdf_path"], page_no, image_bbox)
