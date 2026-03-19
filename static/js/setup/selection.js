@@ -45,7 +45,7 @@ export function getSelectedLines(target) {
   return sortLines(ids.map((id) => getLineById(id)).filter(Boolean));
 }
 
-export function buildTextFromLines(lines) {
+export function buildTextFromLines(lines) { //これは削除予定。バックエンドに移植する。
   return lines
     .map((line) => String(line.text || "").trim())
     .filter(Boolean)

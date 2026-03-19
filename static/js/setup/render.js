@@ -86,17 +86,9 @@ export function applyMode() {
   }
 }
 
-export function syncHeadingTextFromSelection() {
-  const autoHeading = buildTextFromTarget("heading");
-  if (document.activeElement !== els.headingText) {
-    els.headingText.value = autoHeading;
-  }
-}
-
 export function updateSelectionUI() {
   const headingLines = getSelectedLines("heading");
   const bodyLines = getSelectedLines("body");
-  const headingText = buildTextFromLines(headingLines);
   const bodyText = buildTextFromLines(bodyLines);
 
   els.targetHeadingBtn?.classList.toggle(
@@ -123,17 +115,9 @@ export function updateSelectionUI() {
     els.bodyCountBadge.textContent = `Body ${bodyLines.length}行`;
   }
 
-  if (els.headingPreview) {
-    els.headingPreview.textContent = headingText || "(未選択)";
-  }
-
-  if (els.bodyPreview) {
-    els.bodyPreview.textContent = bodyText || "(未選択)";
-  }
-
   if (!bodyLines.length) {
     els.selectionStatus.textContent = "Body行を選択してください";
-  } else if (!headingLines.length && !els.headingText.value.trim()) {
+  } else if (!headingLines.length) {
     els.selectionStatus.textContent = "保存できます（heading は空でも可）";
   } else {
     els.selectionStatus.textContent = "保存できます";
@@ -329,7 +313,6 @@ export function renderFigureList() {
 }
 
 export function refreshSelectionView() {
-  syncHeadingTextFromSelection();
   updateSelectionUI();
   renderAllLines();
 }

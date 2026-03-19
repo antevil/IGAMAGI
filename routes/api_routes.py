@@ -15,7 +15,7 @@ from services.translator import TranslatorError, translator
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 
 
-@api_bp.get("/docs/<int:doc_id>")
+@api_bp.get("/docs/<int:doc_id>") 
 def get_document(doc_id: int):
     doc = db.fetch_one("SELECT * FROM documents WHERE id = ?", (doc_id,))
     if doc is None:
@@ -95,7 +95,7 @@ def create_paragraph(doc_id: int):
     order_index = int(payload["order_index"])
     unit_type = (payload.get("unit_type") or "body").strip() or "body"
 
-    explicit_heading_text = (payload.get("heading_text") or "").strip()
+    explicit_heading_text = (payload.get("heading_text") or "").strip() #削除予定。
 
     # body は必須
     if not selected_line_ids:
@@ -140,11 +140,7 @@ def create_paragraph(doc_id: int):
     raw_text = build_paragraph_text(body_lines)
     normalized_text = normalize_paragraph_text(raw_text)
 
-    heading_text = explicit_heading_text
-    if not heading_text and heading_lines:
-        heading_text = build_paragraph_text(heading_lines).strip()
-
-    heading_text = heading_text or None
+    heading_text = build_paragraph_text(heading_lines).strip() if heading_lines else None
 
     paragraph_id = db.execute(
         """

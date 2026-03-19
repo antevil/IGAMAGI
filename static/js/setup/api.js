@@ -95,17 +95,15 @@ export async function saveParagraph() {
   }
 
   const headingLines = getSelectedLines("heading");
-  const bodyRange = getRepresentativeRangeIds("body");
+  const bodyRange = getRepresentativeRangeIds("body"); //不明の関数。パラグラフのlineのリストなのかな？
 
   const payload = {
-    start_line_id: bodyRange.start_line_id,
+    start_line_id: bodyRange.start_line_id, //この辺も消していきたいな。
     end_line_id: bodyRange.end_line_id,
-    selected_line_ids: bodyLines.map((line) => Number(line.id)),
+    selected_line_ids: bodyLines.map((line) => Number(line.id)), //ここはintに修正するのはバックエンドでやるからなくしてもいいのでは？
     heading_line_ids: headingLines.map((line) => Number(line.id)),
     order_index: Number(els.orderIndex.value || 0),
     unit_type: els.unitType.value,
-    heading_text:
-      els.headingText.value.trim() || buildTextFromLines(headingLines),
   };
 
   const result = await fetchJSON(`/api/docs/${state.docId}/paragraphs`, {

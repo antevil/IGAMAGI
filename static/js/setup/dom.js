@@ -23,9 +23,6 @@ export const els = {
 
   orderIndex: $("orderIndex"),
   unitType: $("unitType"),
-  headingText: $("headingText"),
-  headingPreview: $("headingPreview"),
-  bodyPreview: $("bodyPreview"),
   saveParagraphBtn: $("saveParagraphBtn"),
   clearSelectionBtn: $("clearSelectionBtn"),
   selectionStatus: $("selectionStatus"),

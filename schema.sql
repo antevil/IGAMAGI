@@ -33,12 +33,17 @@ CREATE TABLE IF NOT EXISTS lines (
   y0              REAL NOT NULL,
   x1              REAL NOT NULL,
   y1              REAL NOT NULL,
+  usage_type      TEXT,
+  usage_ref_id    INTEGER,
   FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE,
   UNIQUE (doc_id, page_no, line_no)
 );
 
 CREATE INDEX IF NOT EXISTS idx_lines_doc_page
 ON lines(doc_id, page_no, line_no);
+
+CREATE INDEX IF NOT EXISTS idx_lines_usage
+ON lines(doc_id, usage_type, usage_ref_id);
 
 CREATE TABLE IF NOT EXISTS paragraphs (
   id              INTEGER PRIMARY KEY,
