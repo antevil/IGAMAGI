@@ -39,13 +39,8 @@ export function createPageStack() {
     lineOverlay.className = "pdf-overlay";
     lineOverlay.dataset.pageNo = String(pageNo);
 
-    const figureOverlay = document.createElement("div");
-    figureOverlay.className = "pdf-overlay";
-    figureOverlay.dataset.pageNo = String(pageNo);
-
-    wrap.appendChild(img);
+    wrap.appendChild(img); 
     wrap.appendChild(lineOverlay);
-    wrap.appendChild(figureOverlay);
 
     block.appendChild(label);
     block.appendChild(wrap);
@@ -56,7 +51,6 @@ export function createPageStack() {
       wrap,
       img,
       lineOverlay,
-      figureOverlay,
     });
   }
 
@@ -68,11 +62,8 @@ export function applyMode() {
   const isFigureMode = state.mode === "figure";
 
   for (const page of state.pageDomByNo.values()) {
-    page.lineOverlay.style.pointerEvents = isLineMode ? "auto" : "none";
-    page.lineOverlay.style.zIndex = isLineMode ? "20" : "10";
-
-    page.figureOverlay.style.pointerEvents = isFigureMode ? "auto" : "none";
-    page.figureOverlay.style.zIndex = isFigureMode ? "20" : "10";
+    page.lineOverlay.style.pointerEvents = "auto";
+    page.lineOverlay.style.zIndex = "20";
   }
 
   els.lineModeBtn?.classList.toggle("is-active", isLineMode);
@@ -81,7 +72,7 @@ export function applyMode() {
   if (els.modeHint) {
     els.modeHint.textContent = isLineMode
       ? "現在: Line選択モード"
-      : "現在: Figure選択モード（Shift=図 / Alt=caption）";
+      : "現在: Figure選択モード（ドラッグでbbox）";
   }
 }
 
@@ -234,7 +225,7 @@ function placeRect(pageNo, el, bbox) {
 
 export function renderFigureBoxes() {
   for (const page of state.pageDomByNo.values()) {
-    page.figureOverlay.querySelectorAll(".draw-rect").forEach((el) => el.remove());
+    page.lineOverlay.querySelectorAll(".draw-rect").forEach((el) => el.remove());
   }
 
   if (state.figurePageNo == null) return;
@@ -246,14 +237,7 @@ export function renderFigureBoxes() {
     const rect = document.createElement("div");
     rect.className = "draw-rect";
     placeRect(state.figurePageNo, rect, state.imageBBox);
-    page.figureOverlay.appendChild(rect);
-  }
-
-  if (state.captionBBox) {
-    const rect = document.createElement("div");
-    rect.className = "draw-rect caption";
-    placeRect(state.figurePageNo, rect, state.captionBBox);
-    page.figureOverlay.appendChild(rect);
+    page.lineOverlay.appendChild(rect);
   }
 }
 

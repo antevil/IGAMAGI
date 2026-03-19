@@ -81,7 +81,7 @@ export function getNaturalSize(pageNo) {
 
 export function syncOverlaySize(pageNo) {
   const page = getPageDom(pageNo);
-  if (!page?.img || !page?.lineOverlay || !page?.figureOverlay) return;
+  if (!page?.img || !page?.lineOverlay) return;
 
   const rect = page.img.getBoundingClientRect();
   const width = rect.width;
@@ -89,8 +89,6 @@ export function syncOverlaySize(pageNo) {
 
   page.lineOverlay.style.width = `${width}px`;
   page.lineOverlay.style.height = `${height}px`;
-  page.figureOverlay.style.width = `${width}px`;
-  page.figureOverlay.style.height = `${height}px`;
 }
 
 export function scaleX(pageNo, x) {

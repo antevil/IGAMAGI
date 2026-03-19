@@ -177,11 +177,13 @@ function bindPageOverlayEvents() {
     page.lineOverlay.addEventListener("pointercancel", handleLinePointerUp);
     page.lineOverlay.addEventListener("dragstart", (event) => event.preventDefault());
 
-    page.figureOverlay.addEventListener("mousedown", (event) => {
+    page.lineOverlay.addEventListener("mousedown", (event) => {
+      if (state.mode !== "figure") return;
+
       const started = startFigureDraw(
         event,
-        Number(page.figureOverlay.dataset.pageNo),
-        page.figureOverlay
+        Number(page.lineOverlay.dataset.pageNo),
+        page.lineOverlay
       );
       if (!started) return;
 
