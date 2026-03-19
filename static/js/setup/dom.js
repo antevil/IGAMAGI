@@ -33,7 +33,6 @@ export const els = {
   figurePageNo: $("figurePageNo"),
   captionTextInput: $("captionTextInput"),
   imageBboxText: $("imageBboxText"),
-  captionBboxText: $("captionBboxText"),
   saveFigureBtn: $("saveFigureBtn"),
   clearFigureSelectionBtn: $("clearFigureSelectionBtn"),
   figureList: $("figureList"),

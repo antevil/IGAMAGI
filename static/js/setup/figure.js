@@ -3,7 +3,6 @@ import { naturalPointFromEvent, normalizeRect } from "./utils.js";
 
 export function clearFigureSelection() {
   state.imageBBox = null;
-  state.captionBBox = null;
   state.figurePageNo = null;
   state.drawing = null;
 }
@@ -54,10 +53,7 @@ export function finishFigureDraw() {
 
   if (state.drawing.kind === "image") {
     state.imageBBox = bbox;
-  } else {
-    state.captionBBox = bbox;
-  }
-
+  } 
   state.figurePageNo = Number(state.drawing.pageNo);
   state.drawing = null;
   return true;

@@ -29,7 +29,6 @@ export const state = {
   },
 
   imageBBox: null,
-  captionBBox: null,
   figurePageNo: null,
   drawing: null,
 
