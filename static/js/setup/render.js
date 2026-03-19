@@ -2,7 +2,6 @@ import { els } from "./dom.js";
 import { state } from "./state.js";
 import {
   buildTextFromLines,
-  buildTextFromTarget,
   getLinesByPage,
   getSelectedLines,
   isLineSelected,
@@ -138,6 +137,16 @@ export function renderLinesForPage(pageNo) {
     div.className = "line-box";
     div.dataset.lineId = String(line.id);
 
+    // まず保存済み状態の色を付ける
+    if (line.usage_type === "paragraph_heading") {
+      div.classList.add("used-heading");
+    } else if (line.usage_type === "paragraph_body") {
+      div.classList.add("used-body");
+    } else if (line.usage_type === "figure_caption") {
+      div.classList.add("used-caption");
+    }
+
+    // 次に「今選択中」の色を上書き気味で付ける
     const inHeading = isLineSelected(line.id, "heading");
     const inBody = isLineSelected(line.id, "body");
 
@@ -262,6 +271,7 @@ export function updateFigureTexts() {
 }
 
 function paragraphCard(paragraph) {
+  //あとで削除
   const card = document.createElement("div");
   card.className = "rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3";
   card.innerHTML = `
@@ -273,6 +283,7 @@ function paragraphCard(paragraph) {
 }
 
 export function renderParagraphList() {
+  //あとで削除
   if (!els.paragraphList) return;
 
   els.paragraphList.innerHTML = "";
@@ -282,6 +293,7 @@ export function renderParagraphList() {
 }
 
 export function renderFigureList() {
+  //あとで削除
   if (!els.figureList) return;
 
   els.figureList.innerHTML = "";

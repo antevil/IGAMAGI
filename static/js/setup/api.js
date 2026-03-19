@@ -20,6 +20,7 @@ import { clearSelectionState } from "./selection.js";
 import { fetchJSON, showToast, syncOverlaySize } from "./utils.js";
 
 async function loadSinglePage(pageNo) {
+  //ここって削除してよい？
   const page = state.pageDomByNo.get(Number(pageNo));
   if (!page) return;
 
