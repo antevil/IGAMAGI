@@ -26,8 +26,6 @@ export const els = {
   saveParagraphBtn: $("saveParagraphBtn"),
   clearSelectionBtn: $("clearSelectionBtn"),
   selectionStatus: $("selectionStatus"),
-  paragraphList: $("paragraphList"),
-  loadParagraphsBtn: $("loadParagraphsBtn"),
 
   figNoInput: $("figNoInput"),
   figurePageNo: $("figurePageNo"),
@@ -36,7 +34,6 @@ export const els = {
   saveFigureBtn: $("saveFigureBtn"),
   clearFigureSelectionBtn: $("clearFigureSelectionBtn"),
   figureList: $("figureList"),
-  loadFiguresBtn: $("loadFiguresBtn"),
 
   toast: $("toast"),
 };

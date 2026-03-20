@@ -266,26 +266,6 @@ function paragraphCard(paragraph) {
   return card;
 }
 
-export function renderParagraphList() {
-  //あとで削除
-  if (!els.paragraphList) return;
-
-  els.paragraphList.innerHTML = "";
-  for (const paragraph of state.paragraphCache) {
-    els.paragraphList.appendChild(paragraphCard(paragraph));
-  }
-}
-
-export function renderFigureList() {
-  //あとで削除
-  if (!els.figureList) return;
-
-  els.figureList.innerHTML = "";
-  for (const figure of state.figureCache) {
-    els.figureList.appendChild(figureCard(figure));
-  }
-}
-
 export function refreshSelectionView() {
   updateSelectionUI();
   renderAllLines();

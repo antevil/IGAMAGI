@@ -9,8 +9,6 @@ import {
   createPageStack,
   renderAllLines,
   renderFigureBoxes,
-  renderFigureList,
-  renderParagraphList,
   refreshSelectionView,
   updateFigureTexts,
   applyMode,
@@ -83,11 +81,6 @@ export async function saveTitle() {
   showToast("タイトルを保存しました");
 }
 
-export async function loadParagraphs() {
-  state.paragraphCache = await fetchJSON(`/api/docs/${state.docId}/paragraphs`);
-  renderParagraphList();
-}
-
 export async function saveParagraph() {
   const bodyLines = getSelectedLines("body");
   if (!bodyLines.length) {
@@ -153,12 +146,6 @@ export async function saveParagraph() {
 
   clearSelectionState();
   refreshSelectionView();
-  await loadParagraphs();
-}
-
-export async function loadFigures() {
-  state.figureCache = await fetchJSON(`/api/docs/${state.docId}/figures`);
-  renderFigureList();
 }
 
 export async function saveFigure() {
@@ -195,5 +182,4 @@ export async function saveFigure() {
   els.figNoInput.value = "";
   els.captionTextInput.value = "";
 
-  await loadFigures();
 }

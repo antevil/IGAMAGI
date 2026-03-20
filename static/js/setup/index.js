@@ -22,8 +22,6 @@ import {
 } from "./render.js";
 import {
   loadAllPages,
-  loadFigures,
-  loadParagraphs,
   saveFigure,
   saveParagraph,
   saveTitle,
@@ -217,14 +215,6 @@ function bindEvents() {
     saveParagraph().catch((err) => showToast(err.message, true));
   });
 
-  els.loadParagraphsBtn?.addEventListener("click", () => {
-    loadParagraphs().catch((err) => showToast(err.message, true));
-  });
-
-  els.loadFiguresBtn?.addEventListener("click", () => {
-    loadFigures().catch((err) => showToast(err.message, true));
-  });
-
   els.clearFigureSelectionBtn?.addEventListener("click", clearFigure);
 
   els.saveFigureBtn?.addEventListener("click", () => {
@@ -285,9 +275,6 @@ async function init() {
   if (els.pageSelect) {
     els.pageSelect.value = String(state.pageNo || 0);
   }
-
-  await loadParagraphs();
-  await loadFigures();
 }
 
 init().catch((err) => {
