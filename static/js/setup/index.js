@@ -38,7 +38,15 @@ import {
 
 function setMode(mode) {
   state.mode = mode;
+
+  // index.js 側で最低限の初期化
+  if (!Array.isArray(state.figureCaptionSelectedLineIds)) {
+    state.figureCaptionSelectedLineIds = [];
+  }
+
   applyMode();
+  refreshSelectionView();
+  updateFigureTexts();
 }
 
 function clearSelection() {
@@ -48,10 +56,17 @@ function clearSelection() {
 
 function clearFigure() {
   clearFigureSelection();
+
+  if (!Array.isArray(state.figureCaptionSelectedLineIds)) {
+    state.figureCaptionSelectedLineIds = [];
+  } else {
+    state.figureCaptionSelectedLineIds = [];
+  }
+
   updateFigureTexts();
   renderFigureBoxes();
+  refreshSelectionView();
 }
-
 function getIntersectingLineIdsFromDrag() {
   const pageNo = Number(state.lineDrag.pageNo);
   const dragRect = normalizeRect({
@@ -79,7 +94,6 @@ function getIntersectingLineIdsFromDrag() {
 }
 
 function handleLinePointerDown(event) {
-  if (state.mode !== "line") return;
   if (event.button !== 0) return;
 
   const overlayEl = event.currentTarget;
@@ -87,6 +101,16 @@ function handleLinePointerDown(event) {
   const point = overlayPointFromEvent(event, overlayEl);
   const lineBox = event.target.closest(".line-box");
 
+  const isLineMode = state.mode === "line";
+  const isFigureCaptionMode = state.mode === "figure" && !!lineBox;
+
+  // lineモードでもなく、figure caption 用の line クリックでもないなら何もしない
+  // figureモードで空白をドラッグした時は、mousedown 側で image bbox 開始に流す
+  if (!isLineMode && !isFigureCaptionMode) return;
+
+  if (!Array.isArray(state.figureCaptionSelectedLineIds)) {
+    state.figureCaptionSelectedLineIds = [];
+  }
   state.lineDrag.active = true;
   state.lineDrag.moved = false;
   state.lineDrag.captureStarted = false;
@@ -102,7 +126,6 @@ function handleLinePointerDown(event) {
 
 function handleLinePointerMove(event) {
   if (!state.lineDrag.active) return;
-  if (state.mode !== "line") return;
 
   const overlayEl = event.currentTarget;
   const pageNo = Number(overlayEl.dataset.pageNo);
@@ -136,19 +159,48 @@ function handleLinePointerUp(event) {
 
   if (Number(state.lineDrag.pageNo) !== pageNo) return;
 
+  if (!Array.isArray(state.figureCaptionSelectedLineIds)) {
+    state.figureCaptionSelectedLineIds = [];
+  }
+
   const pointerId = state.lineDrag.pointerId;
   const moved = state.lineDrag.moved;
   const startedOnLineId = state.lineDrag.startedOnLineId;
   const didCapture = state.lineDrag.captureStarted;
+  const isFigureMode = state.mode === "figure";
+
 
   if (moved) {
     const ids = getIntersectingLineIdsFromDrag();
     if (ids.length) {
-      addLinesToSelection(ids);
+      if (isFigureMode) {
+        state.figureCaptionSelectedLineIds = [
+          ...new Set([
+            ...state.figureCaptionSelectedLineIds,
+            ...ids.map((id) => Number(id)),
+          ]),
+        ];
+      } else {
+        addLinesToSelection(ids);
+      }
     }
   } else if (startedOnLineId != null) {
-    toggleLineSelection(startedOnLineId);
+    if (isFigureMode) {
+      const id = Number(startedOnLineId);
+      if (state.figureCaptionSelectedLineIds.includes(id)) {
+        state.figureCaptionSelectedLineIds =
+          state.figureCaptionSelectedLineIds.filter((x) => x !== id);
+      } else {
+        state.figureCaptionSelectedLineIds = [
+          ...state.figureCaptionSelectedLineIds,
+          id,
+        ];
+      }
+    } else {
+      toggleLineSelection(startedOnLineId);
+    }
   }
+
 
   state.lineDrag.active = false;
   state.lineDrag.moved = false;
@@ -163,6 +215,7 @@ function handleLinePointerUp(event) {
   }
 
   refreshSelectionView();
+  updateFigureTexts();
   event.preventDefault();
   event.stopPropagation();
 }
@@ -177,6 +230,8 @@ function bindPageOverlayEvents() {
 
     page.lineOverlay.addEventListener("mousedown", (event) => {
       if (state.mode !== "figure") return;
+
+      if (event.target.closest(".line-box")) return;
 
       const started = startFigureDraw(
         event,
@@ -262,6 +317,10 @@ function bindEvents() {
 
 async function init() {
   if (!state.docId) return;
+
+  if (!Array.isArray(state.figureCaptionSelectedLineIds)) {
+    state.figureCaptionSelectedLineIds = [];
+  }
 
   bindEvents();
   setSelectionTarget("body");

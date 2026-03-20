@@ -7,26 +7,29 @@
 - PDFアップロード
 - PyMuPDF による line 抽出
 - PDFページプレビュー表示
-- line クリックで paragraph 範囲を手動指定
+- line クリック / ドラッグで paragraph を手動指定
 - paragraph を保存後、spaCy(sentencizer) で文分割
 - DeepL API で文ごとに翻訳
 - 左ペインに English / Japanese を交互表示
-- Shift+ドラッグで figure 本体、Alt+ドラッグで caption bbox を指定
+- figure 本体はドラッグで bbox 指定
+- figure caption は line 選択で指定
+- setup 上で使用済み line を色分け表示
 - 右ペインに figure 画像と caption を表示
 
 ## セットアップ
 
 ```bash
 python -m venv .venv
+
 # Windows PowerShell
 .\.venv\Scripts\Activate.ps1
+
 # または cmd
 .\.venv\Scripts\activate.bat
 
 pip install -r requirements.txt
 python tools/init_db.py
 python app.py
-```
 
 ## DeepL を使う場合
 

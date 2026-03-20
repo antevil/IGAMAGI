@@ -158,11 +158,21 @@ export async function saveFigure() {
     showToast("figure の page が不明です", true);
     return;
   }
+  if (!Array.isArray(state.figureCaptionSelectedLineIds)) {
+    state.figureCaptionSelectedLineIds = [];
+  }
+
+  if (state.figureCaptionSelectedLineIds.length === 0) {
+    showToast("caption line を選択してください", true);
+    return;
+  }
+
 
   const payload = {
     fig_no: els.figNoInput.value.trim() || "FIG",
     page_no: Number(state.figurePageNo),
     image_bbox: state.imageBBox,
+    caption_line_ids: state.figureCaptionSelectedLineIds,
   };
 
   await fetchJSON(`/api/docs/${state.docId}/figures`, {
@@ -176,10 +186,14 @@ export async function saveFigure() {
   showToast("Figureを保存しました");
 
   clearFigureSelection();
+  state.figureCaptionSelectedLineIds = [];
+
   updateFigureTexts();
   renderFigureBoxes();
 
-  els.figNoInput.value = "";
-  els.captionTextInput.value = "";
+  if (typeof loadFigures === "function") {
+    await loadFigures();
+  }
 
+  refreshSelectionView();
 }
