@@ -10,6 +10,7 @@ export function clearFigureSelection() {
 export function startFigureDraw(event, pageNo, overlayEl) {
   if (state.mode !== "figure") return false;
   if (event.button !== 0) return false;
+  if (!event.shiftKey) return false;
 
   const point = naturalPointFromEvent(event, pageNo, overlayEl);
 

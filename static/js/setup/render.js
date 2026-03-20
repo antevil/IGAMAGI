@@ -140,8 +140,13 @@ export function renderLinesForPage(pageNo) {
     // 次に「今選択中」の色を上書き気味で付ける
     const inHeading = isLineSelected(line.id, "heading");
     const inBody = isLineSelected(line.id, "body");
+    const inFigureCaption =
+      Array.isArray(state.figureCaptionSelectedLineIds) &&
+      state.figureCaptionSelectedLineIds.includes(Number(line.id));
 
-    if (inHeading && inBody) {
+    if (state.mode === "figure" && inFigureCaption) {
+      div.classList.add("selected-caption");
+    } else if (inHeading && inBody) {
       div.classList.add("selected-both");
     } else if (inHeading) {
       div.classList.add("selected-heading");
