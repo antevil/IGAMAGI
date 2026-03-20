@@ -151,7 +151,10 @@
     btn.textContent = "＋";
 
     btn.addEventListener("click", () => {
-      window.location.href = `/docs/${state.docId}/setup`;
+      const last = state.paragraphCache.at(-1);
+      const page = last ? last.end_page_no : 0;
+
+      window.location.href = `/docs/${state.docId}/setup?page=${page}`;
     });
 
     wrap.appendChild(btn);

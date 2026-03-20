@@ -315,11 +315,29 @@ function bindEvents() {
   });
 }
 
+function getQueryParam(name) {
+  const url = new URL(window.location.href);
+  return url.searchParams.get(name);
+}
+
+function scrollToCurrentPage() {
+  const page = state.pageDomByNo.get(Number(state.pageNo));
+  page?.block?.scrollIntoView({
+    behavior: "auto",
+    block: "start",
+  });
+}
+
+
 async function init() {
   if (!state.docId) return;
 
   if (!Array.isArray(state.figureCaptionSelectedLineIds)) {
     state.figureCaptionSelectedLineIds = [];
+  }
+  const pageParam = getQueryParam("page");
+  if (pageParam !== null) {
+    state.pageNo = Number(pageParam);
   }
 
   bindEvents();
@@ -334,6 +352,8 @@ async function init() {
   if (els.pageSelect) {
     els.pageSelect.value = String(state.pageNo || 0);
   }
+
+  scrollToCurrentPage();
 }
 
 init().catch((err) => {
