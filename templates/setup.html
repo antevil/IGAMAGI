@@ -24,7 +24,7 @@
     }
 
     .page-block {
-      scroll-margin-top: 12rem;
+      scroll-margin-top: 10rem;
     }
 
     .pdf-wrap {
@@ -118,7 +118,9 @@
 
   <div class="min-h-screen">
     <header class="sticky top-0 z-30 border-b border-zinc-800 bg-zinc-950/95 backdrop-blur">
-      <div class="mx-auto max-w-7xl px-4 py-3 space-y-3">
+      <div class="mx-auto max-w-7xl px-4 py-2 space-y-2">
+
+        <!-- 上段: 共通操作を1行に集約 -->
         <div class="flex flex-wrap items-center gap-2">
           <a
             href="/docs/{{ document.id }}"
@@ -126,92 +128,79 @@
           >
             ← 戻る
           </a>
+
           <a
             href="/docs/{{ document.id }}/reader"
             class="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm hover:bg-zinc-800"
           >
             Readerへ
           </a>
-          <div class="ml-auto text-sm text-zinc-400">
+
+          <div class="min-w-0 flex items-center gap-2">
+            <span class="shrink-0 text-sm text-zinc-400">文書名</span>
+            <input
+              id="titleInput"
+              type="text"
+              value="{{ document.title or '' }}"
+              class="w-[28rem] max-w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+            />
+            <button
+              id="saveTitleBtn"
+              type="button"
+              class="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm hover:bg-zinc-700"
+            >
+              保存
+            </button>
+          </div>
+
+          <div class="flex flex-wrap gap-2">
+            <button
+              id="tabParagraphBtn"
+              type="button"
+              class="tab-btn rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm hover:bg-zinc-800"
+            >
+              段落作成
+            </button>
+            <button
+              id="tabFigureBtn"
+              type="button"
+              class="tab-btn rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm hover:bg-zinc-800"
+            >
+              Figure作成
+            </button>
+          </div>
+
+          <button
+            id="reloadBtn"
+            type="button"
+            class="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm hover:bg-zinc-700"
+          >
+            再読込
+          </button>
+
+          <label class="flex items-center gap-2 text-sm text-zinc-300">
+            <span>Page</span>
+            <select
+              id="pageSelect"
+              class="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+            >
+              {% for page in pages %}
+                <option value="{{ page.page_no }}">{{ page.page_no + 1 }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <div class="ml-auto text-xs text-zinc-500">
             Setup / doc_id={{ document.id }}
           </div>
         </div>
 
-        <div class="flex flex-wrap items-center gap-3">
-          <h1 class="text-lg font-semibold">
-            {{ document.title or document.filename }}
-          </h1>
-          <div class="text-sm text-zinc-400">
-            PDFをスクロールしても上の操作パネルは固定です
-          </div>
-        </div>
+        <!-- 下段: タブ固有操作だけ -->
+        <div class="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3">
+          <section id="paragraphPanel" class="hidden">
+            <div class="flex flex-wrap items-center gap-2 text-sm">
+              <span class="text-zinc-400">段落作成</span>
 
-        <div class="flex flex-wrap gap-2">
-          <button
-            id="tabMetaBtn"
-            type="button"
-            class="tab-btn rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm hover:bg-zinc-800"
-          >
-            文書メタ
-          </button>
-          <button
-            id="tabParagraphBtn"
-            type="button"
-            class="tab-btn rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm hover:bg-zinc-800"
-          >
-            段落作成
-          </button>
-          <button
-            id="tabFigureBtn"
-            type="button"
-            class="tab-btn rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm hover:bg-zinc-800"
-          >
-            Figure作成
-          </button>
-        </div>
-
-        <div id="headerPanels" class="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
-          <section id="metaPanel" class="space-y-4">
-            <div>
-              <h2 class="text-base font-semibold">文書メタ</h2>
-              <p class="mt-1 text-sm text-zinc-400">
-                title / abstract / body を準備
-              </p>
-            </div>
-
-            <div class="grid gap-3 md:grid-cols-[1fr_auto]">
-              <label class="space-y-1">
-                <span class="text-sm text-zinc-300">タイトル</span>
-                <input
-                  id="titleInput"
-                  type="text"
-                  value="{{ document.title or '' }}"
-                  class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500"
-                />
-              </label>
-
-              <div class="flex items-end">
-                <button
-                  id="saveTitleBtn"
-                  type="button"
-                  class="rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm hover:bg-zinc-700"
-                >
-                  タイトル保存
-                </button>
-              </div>
-            </div>
-          </section>
-
-          <section id="paragraphPanel" class="hidden space-y-4">
-            <div>
-              <h2 class="text-base font-semibold">段落作成</h2>
-              <p id="modeHint" class="mt-1 text-sm text-zinc-400">
-                現在: Line選択モード
-              </p>
-            </div>
-
-            <div class="flex flex-wrap items-center gap-2">
-              <span class="text-sm text-zinc-300">選択先</span>
               <button
                 id="targetHeadingBtn"
                 type="button"
@@ -219,6 +208,7 @@
               >
                 Heading選択
               </button>
+
               <button
                 id="targetBodyBtn"
                 type="button"
@@ -226,41 +216,40 @@
               >
                 Body選択
               </button>
-              <span id="selectionTargetHint" class="text-sm text-zinc-400"></span>
-            </div>
 
-            <div class="flex flex-wrap gap-2">
               <span
                 id="headingCountBadge"
                 class="rounded-full border border-zinc-700 bg-zinc-950 px-3 py-1 text-sm text-zinc-300"
               >
                 Heading 0行
               </span>
+
               <span
                 id="bodyCountBadge"
                 class="rounded-full border border-zinc-700 bg-zinc-950 px-3 py-1 text-sm text-zinc-300"
               >
                 Body 0行
               </span>
-            </div>
 
-            <div class="grid gap-3 md:grid-cols-3">
-              <label class="space-y-1">
-                <span class="text-sm text-zinc-300">order_index</span>
+              <span id="selectionTargetHint" class="text-sm text-zinc-400"></span>
+              <span id="modeHint" class="text-sm text-zinc-500">Line選択</span>
+
+              <label class="ml-2 flex items-center gap-2">
+                <span class="text-zinc-400">order</span>
                 <input
                   id="orderIndex"
                   type="number"
                   min="1"
                   value="1"
-                  class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+                  class="w-20 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500"
                 />
               </label>
 
-              <label class="space-y-1">
-                <span class="text-sm text-zinc-300">unit_type</span>
+              <label class="flex items-center gap-2">
+                <span class="text-zinc-400">type</span>
                 <select
                   id="unitType"
-                  class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+                  class="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500"
                 >
                   <option value="title">title</option>
                   <option value="abstract">abstract</option>
@@ -268,17 +257,6 @@
                 </select>
               </label>
 
-              <div class="flex items-end">
-                <div
-                  id="selectionStatus"
-                  class="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300"
-                >
-                  Body行を選択してください
-                </div>
-              </div>
-            </div>
-
-            <div class="flex flex-wrap gap-2">
               <button
                 id="saveParagraphBtn"
                 type="button"
@@ -286,6 +264,7 @@
               >
                 段落保存
               </button>
+
               <button
                 id="clearSelectionBtn"
                 type="button"
@@ -293,57 +272,61 @@
               >
                 選択クリア
               </button>
+
+              <span
+                id="selectionStatus"
+                class="min-w-[14rem] rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300"
+              >
+                Body行を選択してください
+              </span>
             </div>
           </section>
 
-          <section id="figurePanel" class="hidden space-y-4">
-            <div>
-              <h2 class="text-base font-semibold">Figure作成</h2>
-              <p class="mt-1 text-sm text-zinc-400">
-                Figureタブを開いている間は Figure選択モードです。Shift+ドラッグで図本体、クリック/ドラッグで caption line を選択します。
-              </p>
-            </div>
+          <section id="figurePanel" class="hidden">
+            <div class="flex flex-wrap items-center gap-2 text-sm">
+              <span class="text-zinc-400">Figure作成</span>
 
-            <div class="grid gap-3 md:grid-cols-3">
-              <label class="space-y-1">
-                <span class="text-sm text-zinc-300">fig_no</span>
+              <span id="modeHintFigure" class="text-sm text-zinc-500">
+                Figure選択
+              </span>
+
+              <label class="ml-2 flex items-center gap-2">
+                <span class="text-zinc-400">fig</span>
                 <input
                   id="figNoInput"
                   type="number"
                   min="1"
                   value="1"
-                  class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+                  class="w-20 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500"
                 />
               </label>
 
-              <label class="space-y-1">
-                <span class="text-sm text-zinc-300">page</span>
+              <label class="flex items-center gap-2">
+                <span class="text-zinc-400">page</span>
                 <input
                   id="figurePageNo"
                   type="text"
                   readonly
-                  class="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300"
+                  class="w-20 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300"
                 />
               </label>
 
-              <label class="space-y-1 md:col-span-1">
-                <span class="text-sm text-zinc-300">caption text</span>
+              <label class="flex items-center gap-2">
+                <span class="text-zinc-400">caption</span>
                 <input
                   id="captionTextInput"
                   type="text"
-                  class="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+                  class="w-[26rem] max-w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500"
                 />
               </label>
-            </div>
 
-            <div
-              id="imageBboxText"
-              class="rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300"
-            >
-              image_bbox: 未選択
-            </div>
+              <span
+                id="imageBboxText"
+                class="min-w-[14rem] rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300"
+              >
+                image_bbox: 未選択
+              </span>
 
-            <div class="flex flex-wrap gap-2">
               <button
                 id="saveFigureBtn"
                 type="button"
@@ -351,6 +334,7 @@
               >
                 Figure保存
               </button>
+
               <button
                 id="clearFigureSelectionBtn"
                 type="button"
@@ -361,39 +345,10 @@
             </div>
           </section>
         </div>
-
-        <div class="flex flex-wrap items-center gap-2 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3">
-          <button
-            id="reloadBtn"
-            type="button"
-            class="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm hover:bg-zinc-700"
-          >
-            再読込
-          </button>
-
-          <label class="flex items-center gap-2 text-sm text-zinc-300">
-            <span>Pageへジャンプ</span>
-            <select
-              id="pageSelect"
-              class="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500"
-            >
-              {% for page in pages %}
-                <option value="{{ page.page_no }}">{{ page.page_no + 1 }}</option>
-              {% endfor %}
-            </select>
-          </label>
-        </div>
       </div>
     </header>
 
     <main class="mx-auto max-w-7xl px-4 py-6">
-      <section class="mb-4">
-        <h2 class="text-base font-semibold">PDFビュー</h2>
-        <p class="mt-1 text-sm text-zinc-400">
-          全ページを縦に表示します。段落作成タブでは line 選択、Figure作成タブでは Shift+ドラッグで bbox 指定です。
-        </p>
-      </section>
-
       <div id="pdfStack" class="space-y-6"></div>
     </main>
 

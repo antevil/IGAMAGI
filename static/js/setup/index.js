@@ -49,21 +49,24 @@ function setMode(mode) {
 }
 
 function updateTabUI() {
-  els.tabMetaBtn?.classList.toggle("is-active", state.activeTab === "meta");
   els.tabParagraphBtn?.classList.toggle(
     "is-active",
     state.activeTab === "paragraph"
   );
-  els.tabFigureBtn?.classList.toggle("is-active", state.activeTab === "figure");
+  els.tabFigureBtn?.classList.toggle(
+    "is-active",
+    state.activeTab === "figure"
+  );
 
-  els.metaPanel?.classList.toggle("hidden", state.activeTab !== "meta");
   els.paragraphPanel?.classList.toggle(
     "hidden",
     state.activeTab !== "paragraph"
   );
-  els.figurePanel?.classList.toggle("hidden", state.activeTab !== "figure");
+  els.figurePanel?.classList.toggle(
+    "hidden",
+    state.activeTab !== "figure"
+  );
 }
-
 function switchHeaderTab(tab) {
   state.activeTab = tab;
   updateTabUI();
@@ -380,7 +383,6 @@ async function init() {
   bindEvents();
 
   setSelectionTarget("body");
-  updateTabUI();
   switchHeaderTab("paragraph");
 
   refreshSelectionView();
