@@ -11,6 +11,14 @@ export const els = {
 
   pdfStack: $("pdfStack"),
 
+  tabMetaBtn: $("tabMetaBtn"),
+  tabParagraphBtn: $("tabParagraphBtn"),
+  tabFigureBtn: $("tabFigureBtn"),
+
+  metaPanel: $("metaPanel"),
+  paragraphPanel: $("paragraphPanel"),
+  figurePanel: $("figurePanel"),
+
   lineModeBtn: $("lineModeBtn"),
   figureModeBtn: $("figureModeBtn"),
   modeHint: $("modeHint"),
@@ -33,7 +41,7 @@ export const els = {
   imageBboxText: $("imageBboxText"),
   saveFigureBtn: $("saveFigureBtn"),
   clearFigureSelectionBtn: $("clearFigureSelectionBtn"),
-  figureList: $("figureList"),
 
+  figureList: $("figureList"),
   toast: $("toast"),
 };

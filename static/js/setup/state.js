@@ -10,6 +10,8 @@ export const state = {
   pageDomByNo: new Map(),
   lineIndex: new Map(),
 
+  activeTab: "paragraph",
+
   selectionTarget: "body",
   headingSelectedLineIds: [],
   bodySelectedLineIds: [],
@@ -34,6 +36,7 @@ export const state = {
 
   paragraphCache: [],
   figureCache: [],
+
   mode: "line",
 };
 

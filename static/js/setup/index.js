@@ -39,7 +39,6 @@ import {
 function setMode(mode) {
   state.mode = mode;
 
-  // index.js 側で最低限の初期化
   if (!Array.isArray(state.figureCaptionSelectedLineIds)) {
     state.figureCaptionSelectedLineIds = [];
   }
@@ -47,6 +46,36 @@ function setMode(mode) {
   applyMode();
   refreshSelectionView();
   updateFigureTexts();
+}
+
+function updateTabUI() {
+  els.tabMetaBtn?.classList.toggle("is-active", state.activeTab === "meta");
+  els.tabParagraphBtn?.classList.toggle(
+    "is-active",
+    state.activeTab === "paragraph"
+  );
+  els.tabFigureBtn?.classList.toggle("is-active", state.activeTab === "figure");
+
+  els.metaPanel?.classList.toggle("hidden", state.activeTab !== "meta");
+  els.paragraphPanel?.classList.toggle(
+    "hidden",
+    state.activeTab !== "paragraph"
+  );
+  els.figurePanel?.classList.toggle("hidden", state.activeTab !== "figure");
+}
+
+function switchHeaderTab(tab) {
+  state.activeTab = tab;
+  updateTabUI();
+
+  if (tab === "paragraph") {
+    setMode("line");
+  } else if (tab === "figure") {
+    setMode("figure");
+  } else {
+    // 文書メタでは line に戻しておくと、誤って figure 描画状態が残りにくい
+    setMode("line");
+  }
 }
 
 function clearSelection() {
@@ -67,6 +96,7 @@ function clearFigure() {
   renderFigureBoxes();
   refreshSelectionView();
 }
+
 function getIntersectingLineIdsFromDrag() {
   const pageNo = Number(state.lineDrag.pageNo);
   const dragRect = normalizeRect({
@@ -77,6 +107,7 @@ function getIntersectingLineIdsFromDrag() {
   });
 
   const ids = [];
+
   for (const line of getLinesByPage(pageNo)) {
     const lineRect = {
       x0: scaleX(pageNo, line.x0),
@@ -104,13 +135,12 @@ function handleLinePointerDown(event) {
   const isLineMode = state.mode === "line";
   const isFigureCaptionMode = state.mode === "figure" && !!lineBox;
 
-  // lineモードでもなく、figure caption 用の line クリックでもないなら何もしない
-  // figureモードで空白をドラッグした時は、mousedown 側で image bbox 開始に流す
   if (!isLineMode && !isFigureCaptionMode) return;
 
   if (!Array.isArray(state.figureCaptionSelectedLineIds)) {
     state.figureCaptionSelectedLineIds = [];
   }
+
   state.lineDrag.active = true;
   state.lineDrag.moved = false;
   state.lineDrag.captureStarted = false;
@@ -169,9 +199,9 @@ function handleLinePointerUp(event) {
   const didCapture = state.lineDrag.captureStarted;
   const isFigureMode = state.mode === "figure";
 
-
   if (moved) {
     const ids = getIntersectingLineIdsFromDrag();
+
     if (ids.length) {
       if (isFigureMode) {
         state.figureCaptionSelectedLineIds = [
@@ -187,6 +217,7 @@ function handleLinePointerUp(event) {
   } else if (startedOnLineId != null) {
     if (isFigureMode) {
       const id = Number(startedOnLineId);
+
       if (state.figureCaptionSelectedLineIds.includes(id)) {
         state.figureCaptionSelectedLineIds =
           state.figureCaptionSelectedLineIds.filter((x) => x !== id);
@@ -200,7 +231,6 @@ function handleLinePointerUp(event) {
       toggleLineSelection(startedOnLineId);
     }
   }
-
 
   state.lineDrag.active = false;
   state.lineDrag.moved = false;
@@ -216,6 +246,7 @@ function handleLinePointerUp(event) {
 
   refreshSelectionView();
   updateFigureTexts();
+
   event.preventDefault();
   event.stopPropagation();
 }
@@ -226,11 +257,12 @@ function bindPageOverlayEvents() {
     page.lineOverlay.addEventListener("pointermove", handleLinePointerMove);
     page.lineOverlay.addEventListener("pointerup", handleLinePointerUp);
     page.lineOverlay.addEventListener("pointercancel", handleLinePointerUp);
-    page.lineOverlay.addEventListener("dragstart", (event) => event.preventDefault());
+    page.lineOverlay.addEventListener("dragstart", (event) =>
+      event.preventDefault()
+    );
 
     page.lineOverlay.addEventListener("mousedown", (event) => {
       if (state.mode !== "figure") return;
-
       if (event.target.closest(".line-box")) return;
 
       const started = startFigureDraw(
@@ -238,6 +270,7 @@ function bindPageOverlayEvents() {
         Number(page.lineOverlay.dataset.pageNo),
         page.lineOverlay
       );
+
       if (!started) return;
 
       event.preventDefault();
@@ -251,8 +284,11 @@ function bindEvents() {
     saveTitle().catch((err) => showToast(err.message, true));
   });
 
-  els.lineModeBtn?.addEventListener("click", () => setMode("line"));
-  els.figureModeBtn?.addEventListener("click", () => setMode("figure"));
+  els.tabMetaBtn?.addEventListener("click", () => switchHeaderTab("meta"));
+  els.tabParagraphBtn?.addEventListener("click", () =>
+    switchHeaderTab("paragraph")
+  );
+  els.tabFigureBtn?.addEventListener("click", () => switchHeaderTab("figure"));
 
   els.targetHeadingBtn?.addEventListener("click", () => {
     setSelectionTarget("heading");
@@ -279,6 +315,7 @@ function bindEvents() {
   els.pageSelect?.addEventListener("change", () => {
     const pageNo = Number(els.pageSelect.value);
     const page = state.pageDomByNo.get(pageNo);
+
     page?.block?.scrollIntoView({
       behavior: "smooth",
       block: "start",
@@ -328,21 +365,24 @@ function scrollToCurrentPage() {
   });
 }
 
-
 async function init() {
   if (!state.docId) return;
 
   if (!Array.isArray(state.figureCaptionSelectedLineIds)) {
     state.figureCaptionSelectedLineIds = [];
   }
+
   const pageParam = getQueryParam("page");
   if (pageParam !== null) {
     state.pageNo = Number(pageParam);
   }
 
   bindEvents();
+
   setSelectionTarget("body");
-  applyMode();
+  updateTabUI();
+  switchHeaderTab("paragraph");
+
   refreshSelectionView();
   updateFigureTexts();
 
