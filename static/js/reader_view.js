@@ -52,6 +52,7 @@
     const isOpen = state.openParagraphId === paragraph.id;
 
     const card = document.createElement("div");
+    card.dataset.paragraphId = String(paragraph.id);
     card.className = isOpen
     ? "rounded-xl border border-zinc-700 bg-zinc-900/80"
     : "rounded-xl border border-zinc-800 bg-zinc-950/70";
@@ -114,6 +115,7 @@
         state.openParagraphId = paragraph.id;
       }
       renderParagraphList();
+      scrollToOpenParagraph();
     });
 
     card.appendChild(head);
@@ -151,6 +153,22 @@
     state.paragraphCache = await fetchJSON(`/api/docs/${state.docId}/paragraphs`);
     renderParagraphList();
   }
+  function scrollToOpenParagraph() {
+    if (!els.paragraphList) return;
+    if (state.openParagraphId == null) return;
+
+    const card = els.paragraphList.querySelector(
+      `[data-paragraph-id="${state.openParagraphId}"]`
+    );
+    if (!card) return;
+
+    requestAnimationFrame(() => {
+      card.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+}
   function figureCard(figure) {
     const card = document.createElement("div");
     card.className = "rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3";
