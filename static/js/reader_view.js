@@ -6,6 +6,7 @@
     docId: boot.docId,
     paragraphCache: [],
     figureCache: [],
+    openParagraphId: null,
   };
 
   const $ = (id) => document.getElementById(id);
@@ -48,29 +49,53 @@
   }
 
   function paragraphCard(paragraph) {
-    const card = document.createElement("div");
-    card.className = "rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3";
+    const isOpen = state.openParagraphId === paragraph.id;
 
-    const head = document.createElement("div");
+    const card = document.createElement("div");
+    card.className = isOpen
+    ? "rounded-xl border border-zinc-700 bg-zinc-900/80"
+    : "rounded-xl border border-zinc-800 bg-zinc-950/70";
+
+    const head = document.createElement("button");
+    head.type = "button";
+    head.className =
+    "w-full p-4 text-left flex items-start justify-between gap-3 hover:bg-zinc-900/60";
     head.innerHTML = `
-      <div class="flex items-center justify-between gap-3">
-        <div>
-          <div class="font-medium">#${paragraph.order_index} ${escapeHtml(paragraph.heading_text || "(no heading)")}</div>
-          <div class="text-xs text-zinc-400">${escapeHtml(paragraph.unit_type)} / p.${paragraph.page_no + 1} - ${paragraph.end_page_no + 1}</div>
+      <div class="space-y-1">
+        <div class="font-semibold text-zinc-100">
+          #${paragraph.order_index} ${escapeHtml(paragraph.heading_text || "(no heading)")}
         </div>
-        <button class="splitBtn rounded-lg bg-zinc-800 px-3 py-2 text-xs hover:bg-zinc-700">再分割+再翻訳</button>
+        <div class="text-xs text-zinc-400">
+          ${escapeHtml(paragraph.unit_type)} / p.${paragraph.page_no + 1} - ${paragraph.end_page_no + 1}
+        </div>
+      </div>
+      <div class="shrink-0 text-zinc-400">
+        ${isOpen ? "▲" : "▼"}
       </div>
     `;
 
     const body = document.createElement("div");
-    body.className = "space-y-2";
+    body.className = `px-4 pb-4 space-y-3 ${isOpen ? "" : "hidden"}`;
+
+    const actionRow = document.createElement("div");
+    actionRow.className = "flex justify-end";
+    actionRow.innerHTML = `
+      <button class="splitBtn rounded-lg border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-800">
+        再分割+再翻訳
+      </button>
+    `;
+    body.appendChild(actionRow);
 
     for (const sentence of paragraph.sentences || []) {
       const block = document.createElement("div");
       block.className = "rounded-lg border border-zinc-800 bg-zinc-900/70 p-3 space-y-2";
       block.innerHTML = `
-        <div class="text-sm leading-6 text-zinc-100">${escapeHtml(sentence.source_text)}</div>
-        <div class="text-sm leading-6 text-indigo-300">${escapeHtml(sentence.translated_text || "")}</div>
+        <div class="text-sm text-zinc-100 whitespace-pre-wrap">
+          ${escapeHtml(sentence.source_text)}
+        </div>
+        <div class="text-sm text-sky-200 whitespace-pre-wrap">
+          ${escapeHtml(sentence.translated_text || "")}
+        </div>
       `;
       body.appendChild(block);
     }
@@ -82,28 +107,50 @@
       body.appendChild(empty);
     }
 
+    head.addEventListener("click", () => {
+      if (state.openParagraphId === paragraph.id) {
+        state.openParagraphId = null;
+      } else {
+        state.openParagraphId = paragraph.id;
+      }
+      renderParagraphList();
+    });
+
     card.appendChild(head);
     card.appendChild(body);
 
-    head.querySelector(".splitBtn").addEventListener("click", async () => {
-      await fetchJSON(`/api/paragraphs/${paragraph.id}/split_sentences`, { method: "POST" });
-      await fetchJSON(`/api/paragraphs/${paragraph.id}/translate`, { method: "POST" });
+    body.querySelector(".splitBtn").addEventListener("click", async (event) => {
+      event.stopPropagation();
+
+      await fetchJSON(`/api/paragraphs/${paragraph.id}/split_sentences`, {
+        method: "POST",
+      });
+      await fetchJSON(`/api/paragraphs/${paragraph.id}/translate`, {
+        method: "POST",
+      });
+
       await loadParagraphs();
+      state.openParagraphId = paragraph.id;
+      renderParagraphList();
       showToast("段落を再分割・再翻訳しました");
     });
 
     return card;
   }
 
-  async function loadParagraphs() {
-    state.paragraphCache = await fetchJSON(`/api/docs/${state.docId}/paragraphs`);
+  function renderParagraphList() {
     if (!els.paragraphList) return;
     els.paragraphList.innerHTML = "";
+
     for (const p of state.paragraphCache) {
       els.paragraphList.appendChild(paragraphCard(p));
     }
   }
 
+  async function loadParagraphs() {
+    state.paragraphCache = await fetchJSON(`/api/docs/${state.docId}/paragraphs`);
+    renderParagraphList();
+  }
   function figureCard(figure) {
     const card = document.createElement("div");
     card.className = "rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3";
