@@ -140,6 +140,24 @@
     return card;
   }
 
+  function addParagraphCard() {
+    const wrap = document.createElement("div");
+    wrap.className = "flex justify-center py-2";
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className =
+      "h-12 w-12 rounded-full border border-dashed border-zinc-600 text-2xl text-zinc-300 hover:bg-zinc-900/70";
+    btn.textContent = "＋";
+
+    btn.addEventListener("click", () => {
+      window.location.href = `/docs/${state.docId}/setup`;
+    });
+
+    wrap.appendChild(btn);
+    return wrap;
+  }
+
   function renderParagraphList() {
     if (!els.paragraphList) return;
     els.paragraphList.innerHTML = "";
@@ -147,6 +165,7 @@
     for (const p of state.paragraphCache) {
       els.paragraphList.appendChild(paragraphCard(p));
     }
+    els.paragraphList.appendChild(addParagraphCard());
   }
 
   async function loadParagraphs() {
@@ -198,6 +217,7 @@
     els.loadParagraphsBtn?.addEventListener("click", loadParagraphs);
     els.loadFiguresBtn?.addEventListener("click", loadFigures);
   }
+  
 
   async function init() {
     bindEvents();
