@@ -6,7 +6,6 @@ import {
   getLinesByPage,
   getSelectedLines,
   setSelectedIdArray,
-  setSelectionTarget,
   toggleLineSelection,
 } from "./selection.js";
 import {
@@ -105,7 +104,7 @@ function clearFigure() {
 function applyAutoHeadingFromBodySelection() {
   const headingLines = getSelectedLines("heading");
   if (headingLines.length > 0) return;
-  
+
   const bodyLines = getSelectedLines("body");
 
   // 1行しかない時まで heading にすると body が空になって保存できなくなるので回避
@@ -383,16 +382,6 @@ function bindEvents() {
   );
   els.tabFigureBtn?.addEventListener("click", () => switchHeaderTab("figure"));
 
-  els.targetHeadingBtn?.addEventListener("click", () => {
-    setSelectionTarget("heading");
-    refreshSelectionView();
-  });
-
-  els.targetBodyBtn?.addEventListener("click", () => {
-    setSelectionTarget("body");
-    refreshSelectionView();
-  });
-
   els.clearSelectionBtn?.addEventListener("click", clearSelection);
 
   els.saveParagraphBtn?.addEventListener("click", () => {
@@ -492,7 +481,6 @@ async function init() {
 
   bindEvents();
 
-  setSelectionTarget("body");
   switchHeaderTab("paragraph");
 
   refreshSelectionView();

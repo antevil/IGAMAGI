@@ -12,7 +12,6 @@ export const state = {
 
   activeTab: "paragraph",
 
-  selectionTarget: "body",
   headingSelectedLineIds: [],
   bodySelectedLineIds: [],
 

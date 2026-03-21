@@ -1,7 +1,6 @@
 import { els } from "./dom.js";
 import { state } from "./state.js";
 import {
-  buildTextFromLines,
   getLinesByPage,
   getSelectedLines,
   isLineSelected,
@@ -79,24 +78,11 @@ export function applyMode() {
 export function updateSelectionUI() {
   const headingLines = getSelectedLines("heading");
   const bodyLines = getSelectedLines("body");
-  const bodyText = buildTextFromLines(bodyLines);
-
-  els.targetHeadingBtn?.classList.toggle(
-    "is-active",
-    state.selectionTarget === "heading"
-  );
-  els.targetBodyBtn?.classList.toggle(
-    "is-active",
-    state.selectionTarget === "body"
-  );
 
   if (els.selectionTargetHint) {
     els.selectionTargetHint.textContent =
-      state.selectionTarget === "heading"
-        ? "現在: Heading選択。クリックで追加/解除、ドラッグで複数追加できます。"
-        : "現在: Body選択。クリックで追加/解除、ドラッグで複数追加できます。";
+      "通常ドラッグ/クリックで Body、Shift+ドラッグ/クリックで Heading を選択できます。";
   }
-
   if (els.headingCountBadge) {
     els.headingCountBadge.textContent = `Heading ${headingLines.length}行`;
   }

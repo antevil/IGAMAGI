@@ -44,20 +44,6 @@ export function getSelectedLines(target) {
   const ids = getSelectedIdArray(target);
   return sortLines(ids.map((id) => getLineById(id)).filter(Boolean));
 }
-
-export function buildTextFromLines(lines) { //これは削除予定。バックエンドに移植する。
-  return lines
-    .map((line) => String(line.text || "").trim())
-    .filter(Boolean)
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-export function buildTextFromTarget(target) {
-  return buildTextFromLines(getSelectedLines(target));
-}
-
 export function getRepresentativeRangeIds(target) {
   const lines = getSelectedLines(target);
   if (!lines.length) {
@@ -70,10 +56,9 @@ export function getRepresentativeRangeIds(target) {
   };
 }
 
-export function toggleLineSelection(lineId, target = state.selectionTarget) {
+export function toggleLineSelection(lineId, target) {
   const current = getSelectedIdArray(target);
   const id = Number(lineId);
-
   if (current.includes(id)) {
     setSelectedIdArray(target, current.filter((x) => x !== id));
   } else {
@@ -81,11 +66,10 @@ export function toggleLineSelection(lineId, target = state.selectionTarget) {
   }
 }
 
-export function addLinesToSelection(lineIds, target = state.selectionTarget) {
+export function addLinesToSelection(lineIds, target) {
   const current = getSelectedIdArray(target);
   setSelectedIdArray(target, [...current, ...lineIds]);
 }
-
 export function clearSelectionState() {
   state.headingSelectedLineIds = [];
   state.bodySelectedLineIds = [];
@@ -97,8 +81,4 @@ export function clearSelectionState() {
   state.lineDrag.captureStarted = false;
   state.lineDrag.pageNo = null;
   state.lineDrag.overlayEl = null;
-}
-
-export function setSelectionTarget(target) {
-  state.selectionTarget = target;
 }

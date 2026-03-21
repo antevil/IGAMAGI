@@ -1,7 +1,6 @@
 import { els } from "./dom.js";
 import { state } from "./state.js";
 import {
-  buildTextFromLines,
   getRepresentativeRangeIds,
   getSelectedLines,
 } from "./selection.js";
