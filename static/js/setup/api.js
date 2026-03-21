@@ -80,7 +80,8 @@ export async function saveTitle() {
   showToast("タイトルを保存しました");
 }
 
-export async function saveParagraph() {
+export async function saveParagraph(options = {}) {
+  const { openViewer = false } = options;
   const bodyLines = getSelectedLines("body");
   if (!bodyLines.length) {
     showToast("Body行を選択してください", true);
@@ -145,6 +146,12 @@ export async function saveParagraph() {
 
   clearSelectionState();
   refreshSelectionView();
+
+  if (openViewer) {
+    const url = `/docs/${state.docId}/reader?paragraph_id=${result.paragraph_id}`;
+    window.location.href = url;
+  }
+
 }
 
 export async function saveFigure() {

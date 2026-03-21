@@ -48,6 +48,21 @@
       .replaceAll("'", "&#039;");
   }
 
+  function getQueryParam(name) {
+  const url = new URL(window.location.href);
+  return url.searchParams.get(name);
+}
+
+function applyInitialParagraphFromQuery() {
+  const paragraphId = getQueryParam("paragraph_id");
+  if (!paragraphId) return;
+
+  const id = Number(paragraphId);
+  if (!Number.isFinite(id)) return;
+
+  state.openParagraphId = id;
+}
+
   function paragraphCard(paragraph) {
     const isOpen = state.openParagraphId === paragraph.id;
 
@@ -223,10 +238,12 @@
   
 
   async function init() {
-    bindEvents();
-    await loadParagraphs();
-    await loadFigures();
-  }
+  bindEvents();
+  applyInitialParagraphFromQuery();
+  await loadParagraphs();
+  scrollToOpenParagraph();
+  await loadFigures();
+}
 
   init().catch((err) => {
     console.error(err);

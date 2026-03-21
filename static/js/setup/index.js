@@ -388,6 +388,12 @@ function bindEvents() {
     saveParagraph().catch((err) => showToast(err.message, true));
   });
 
+  els.saveParagraphAndOpenBtn?.addEventListener("click", () => {
+    saveParagraph({ openViewer: true }).catch((err) =>
+      showToast(err.message, true)
+    );
+  });
+
   els.clearFigureSelectionBtn?.addEventListener("click", clearFigure);
 
   els.saveFigureBtn?.addEventListener("click", () => {

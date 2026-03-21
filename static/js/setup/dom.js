@@ -26,6 +26,7 @@ export const els = {
   targetHeadingBtn: $("targetHeadingBtn"),
   targetBodyBtn: $("targetBodyBtn"),
   selectionTargetHint: $("selectionTargetHint"),
+  saveParagraphAndOpenBtn: $("saveParagraphAndOpenBtn"),
   headingCountBadge: $("headingCountBadge"),
   bodyCountBadge: $("bodyCountBadge"),
 
