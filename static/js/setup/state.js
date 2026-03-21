@@ -28,6 +28,7 @@ export const state = {
     captureStarted: false,
     pageNo: null,
     overlayEl: null,
+    target: "body",
   },
 
   imageBBox: null,

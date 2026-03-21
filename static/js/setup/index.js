@@ -4,6 +4,8 @@ import {
   addLinesToSelection,
   clearSelectionState,
   getLinesByPage,
+  getSelectedLines,
+  setSelectedIdArray,
   setSelectionTarget,
   toggleLineSelection,
 } from "./selection.js";
@@ -100,6 +102,22 @@ function clearFigure() {
   refreshSelectionView();
 }
 
+function applyAutoHeadingFromBodySelection() {
+  const headingLines = getSelectedLines("heading");
+  if (headingLines.length > 0) return;
+  
+  const bodyLines = getSelectedLines("body");
+
+  // 1行しかない時まで heading にすると body が空になって保存できなくなるので回避
+  if (bodyLines.length < 2) return;
+
+  const firstLineId = Number(bodyLines[0].id);
+  const remainingBodyIds = bodyLines.slice(1).map((line) => Number(line.id));
+
+  setSelectedIdArray("heading", [firstLineId]);
+  setSelectedIdArray("body", remainingBodyIds);
+}
+
 function getIntersectingLineIdsFromDrag() {
   const pageNo = Number(state.lineDrag.pageNo);
   const dragRect = normalizeRect({
@@ -155,6 +173,7 @@ function handleLinePointerDown(event) {
   state.lineDrag.startedOnLineId = lineBox ? Number(lineBox.dataset.lineId) : null;
   state.lineDrag.pageNo = pageNo;
   state.lineDrag.overlayEl = overlayEl;
+  state.lineDrag.target = event.shiftKey ? "heading" : "body";
 }
 
 function handleLinePointerMove(event) {
@@ -201,6 +220,7 @@ function handleLinePointerUp(event) {
   const startedOnLineId = state.lineDrag.startedOnLineId;
   const didCapture = state.lineDrag.captureStarted;
   const isFigureMode = state.mode === "figure";
+  const dragTarget = state.lineDrag.target || "body";
 
   if (moved) {
     const ids = getIntersectingLineIdsFromDrag();
@@ -214,7 +234,11 @@ function handleLinePointerUp(event) {
           ]),
         ];
       } else {
-        addLinesToSelection(ids);
+        addLinesToSelection(ids, dragTarget);
+
+        if (dragTarget === "body") {
+          applyAutoHeadingFromBodySelection();
+        }
       }
     }
   } else if (startedOnLineId != null) {
@@ -231,7 +255,11 @@ function handleLinePointerUp(event) {
         ];
       }
     } else {
-      toggleLineSelection(startedOnLineId);
+      toggleLineSelection(startedOnLineId, dragTarget);
+
+       if (dragTarget === "body") {
+        applyAutoHeadingFromBodySelection();
+      }
     }
   }
 
@@ -242,6 +270,7 @@ function handleLinePointerUp(event) {
   state.lineDrag.captureStarted = false;
   state.lineDrag.pageNo = null;
   state.lineDrag.overlayEl = null;
+  state.lineDrag.target = "body";
 
   if (didCapture && pointerId != null) {
     overlayEl.releasePointerCapture?.(pointerId);
