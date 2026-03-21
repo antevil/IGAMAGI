@@ -80,6 +80,16 @@ export async function saveTitle() {
   showToast("タイトルを保存しました");
 }
 
+export async function syncNextOrderIndex() {
+  if (!state.docId || !els.orderIndex) return;
+
+  const result = await fetchJSON(
+    `/api/docs/${state.docId}/paragraphs/next_order_index`
+  );
+
+  els.orderIndex.value = String(result.next_order_index ?? 1);
+}
+
 export async function saveParagraph(options = {}) {
   const { openViewer = false } = options;
   const bodyLines = getSelectedLines("body");
@@ -142,7 +152,7 @@ export async function saveParagraph(options = {}) {
     showToast("保存・文分割・翻訳まで完了しました");
   }
 
-  els.orderIndex.value = Number(els.orderIndex.value || 0) + 1;
+  await syncNextOrderIndex();
 
   clearSelectionState();
   refreshSelectionView();

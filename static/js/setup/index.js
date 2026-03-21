@@ -26,6 +26,7 @@ import {
   saveFigure,
   saveParagraph,
   saveTitle,
+  syncNextOrderIndex,
 } from "./api.js";
 import {
   normalizeRect,
@@ -493,6 +494,7 @@ async function init() {
   updateFigureTexts();
 
   await loadAllPages();
+  await syncNextOrderIndex(); // 最新の order_index を取得しておく
   bindPageOverlayEvents();
 
   if (els.pageSelect) {

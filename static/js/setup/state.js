@@ -34,7 +34,6 @@ export const state = {
   figurePageNo: null,
   drawing: null,
 
-  paragraphCache: [],
   figureCache: [],
 
   zoom: 1,

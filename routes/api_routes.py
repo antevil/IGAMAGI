@@ -136,7 +136,7 @@ def create_paragraph(doc_id: int):
     """
     payload = request.get_json(force=True)
 
-# フロントから受け取った line id 一覧
+    # フロントから受け取った line id 一覧
     selected_line_ids = [int(x) for x in (payload.get("selected_line_ids") or [])]
     heading_line_ids = [int(x) for x in (payload.get("heading_line_ids") or [])]
 
@@ -215,6 +215,21 @@ def create_paragraph(doc_id: int):
     _set_lines_usage(selected_line_ids, "paragraph_body", paragraph_id)
 
     return jsonify({"ok": True, "paragraph_id": paragraph_id})
+
+
+@api_bp.get("/docs/<int:doc_id>/paragraphs/next_order_index")
+def get_next_paragraph_order_index(doc_id: int):
+    row = db.fetch_one(
+        """
+        SELECT COALESCE(MAX(order_index), 0) AS max_order_index
+        FROM paragraphs
+        WHERE doc_id = ?
+        """,
+        (doc_id,),
+    )
+
+    max_order_index = int(row["max_order_index"] or 0)
+    return jsonify({"next_order_index": max_order_index + 1})
 
 @api_bp.get("/docs/<int:doc_id>/paragraphs")
 def list_paragraphs(doc_id: int):
