@@ -37,6 +37,11 @@ export const state = {
   paragraphCache: [],
   figureCache: [],
 
+  zoom: 1,
+  minZoom: 0.6,
+  maxZoom: 1.6,
+  zoomStep: 0.1,
+
   mode: "line",
 };
 

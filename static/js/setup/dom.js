@@ -44,4 +44,9 @@ export const els = {
 
   figureList: $("figureList"),
   toast: $("toast"),
+  
+  zoomOutBtn: $("zoomOutBtn"),
+  zoomResetBtn: $("zoomResetBtn"),
+  zoomInBtn: $("zoomInBtn"),
+  zoomLabel: $("zoomLabel"),
 };

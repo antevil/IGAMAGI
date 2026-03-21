@@ -282,10 +282,71 @@ function bindPageOverlayEvents() {
   }
 }
 
+function clampZoom(value) {
+  return Math.max(state.minZoom, Math.min(state.maxZoom, value));
+}
+
+function updateZoomLabel() {
+  if (!els.zoomLabel) return;
+  const percent = Math.round(state.zoom * 100);
+  els.zoomLabel.textContent = `${percent}%`;
+  if (els.zoomResetBtn) {
+    els.zoomResetBtn.textContent = `${percent}%`;
+  }
+}
+
+function applyZoom() {
+  for (const page of state.pageDomByNo.values()) {
+    if (page.block) {
+      page.block.style.width = `${Math.round(state.zoom * 100)}%`;
+      page.block.style.marginLeft = "auto";
+      page.block.style.marginRight = "auto";
+    }
+    syncOverlaySize(Number(page.lineOverlay.dataset.pageNo));
+  }
+
+  refreshSelectionView();
+  renderFigureBoxes();
+  updateFigureTexts();
+  updateZoomLabel();
+}
+
+function setZoom(nextZoom) {
+  state.zoom = clampZoom(nextZoom);
+  applyZoom();
+}
+
+function zoomIn() {
+  setZoom(state.zoom + state.zoomStep);
+}
+
+function zoomOut() {
+  setZoom(state.zoom - state.zoomStep);
+}
+
+function resetZoom() {
+  setZoom(1);
+}
+
+function isTypingTarget(target) {
+  if (!target) return false;
+
+  const tag = target.tagName;
+  return (
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
+    target.isContentEditable
+  );
+}
 function bindEvents() {
   els.saveTitleBtn?.addEventListener("click", () => {
     saveTitle().catch((err) => showToast(err.message, true));
   });
+
+  els.zoomInBtn?.addEventListener("click", zoomIn);
+  els.zoomOutBtn?.addEventListener("click", zoomOut);
+  els.zoomResetBtn?.addEventListener("click", resetZoom);
 
   els.tabMetaBtn?.addEventListener("click", () => switchHeaderTab("meta"));
   els.tabParagraphBtn?.addEventListener("click", () =>
@@ -339,6 +400,26 @@ function bindEvents() {
     }
     refreshSelectionView();
     renderFigureBoxes();
+  });
+
+  window.addEventListener("keydown", (event) => {
+    if (isTypingTarget(event.target)) return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (event.repeat) return;
+
+    const key = event.key.toLowerCase();
+
+    if (key === "w") {
+      event.preventDefault();
+      zoomIn();
+      return;
+    }
+
+    if (key === "s") {
+      event.preventDefault();
+      zoomOut();
+      return;
+    }
   });
 
   window.addEventListener("mousemove", (event) => {
