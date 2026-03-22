@@ -16,14 +16,16 @@ import {
 } from "./figure.js";
 import {
   applyMode,
+  createPageStack,
   refreshSelectionView,
   renderDragRect,
   renderFigureBoxes,
   updateFigureTexts,
 } from "./render.js";
 import {
-  loadAllPages,
-  loadParagraphForEditData,
+  ensureNearbyPages,
+  loadInitialPages,
+  reloadLoadedPages,
   saveFigure,
   saveParagraph,
   saveTitle,
@@ -56,20 +58,11 @@ function updateTabUI() {
     "is-active",
     state.activeTab === "paragraph"
   );
-  els.tabFigureBtn?.classList.toggle(
-    "is-active",
-    state.activeTab === "figure"
-  );
-
-  els.paragraphPanel?.classList.toggle(
-    "hidden",
-    state.activeTab !== "paragraph"
-  );
-  els.figurePanel?.classList.toggle(
-    "hidden",
-    state.activeTab !== "figure"
-  );
+  els.tabFigureBtn?.classList.toggle("is-active", state.activeTab === "figure");
+  els.paragraphPanel?.classList.toggle("hidden", state.activeTab !== "paragraph");
+  els.figurePanel?.classList.toggle("hidden", state.activeTab !== "figure");
 }
+
 function switchHeaderTab(tab) {
   state.activeTab = tab;
   updateTabUI();
@@ -79,7 +72,6 @@ function switchHeaderTab(tab) {
   } else if (tab === "figure") {
     setMode("figure");
   } else {
-    // 文書メタでは line に戻しておくと、誤って figure 描画状態が残りにくい
     setMode("line");
   }
 }
@@ -91,13 +83,7 @@ function clearSelection() {
 
 function clearFigure() {
   clearFigureSelection();
-
-  if (!Array.isArray(state.figureCaptionSelectedLineIds)) {
-    state.figureCaptionSelectedLineIds = [];
-  } else {
-    state.figureCaptionSelectedLineIds = [];
-  }
-
+  state.figureCaptionSelectedLineIds = [];
   updateFigureTexts();
   renderFigureBoxes();
   refreshSelectionView();
@@ -109,11 +95,12 @@ function applyAutoHeadingFromBodySelection() {
 
   const bodyLines = getSelectedLines("body");
 
-  // 1行しかない時まで heading にすると body が空になって保存できなくなるので回避
   if (bodyLines.length < 2) return;
 
   const firstLineId = Number(bodyLines[0].id);
-  const remainingBodyIds = bodyLines.slice(1).map((line) => Number(line.id));
+  const remainingBodyIds = bodyLines
+    .slice(1)
+    .map((line) => Number(line.id));
 
   setSelectedIdArray("heading", [firstLineId]);
   setSelectedIdArray("body", remainingBodyIds);
@@ -121,6 +108,7 @@ function applyAutoHeadingFromBodySelection() {
 
 function getIntersectingLineIdsFromDrag() {
   const pageNo = Number(state.lineDrag.pageNo);
+
   const dragRect = normalizeRect({
     x0: state.lineDrag.x0,
     y0: state.lineDrag.y0,
@@ -129,7 +117,6 @@ function getIntersectingLineIdsFromDrag() {
   });
 
   const ids = [];
-
   for (const line of getLinesByPage(pageNo)) {
     const lineRect = {
       x0: scaleX(pageNo, line.x0),
@@ -156,7 +143,6 @@ function handleLinePointerDown(event) {
 
   const isLineMode = state.mode === "line";
   const isFigureCaptionMode = state.mode === "figure" && !!lineBox;
-
   if (!isLineMode && !isFigureCaptionMode) return;
 
   if (!Array.isArray(state.figureCaptionSelectedLineIds)) {
@@ -182,10 +168,10 @@ function handleLinePointerMove(event) {
 
   const overlayEl = event.currentTarget;
   const pageNo = Number(overlayEl.dataset.pageNo);
-
   if (Number(state.lineDrag.pageNo) !== pageNo) return;
 
   const point = overlayPointFromEvent(event, overlayEl);
+
   state.lineDrag.x1 = point.x;
   state.lineDrag.y1 = point.y;
 
@@ -209,7 +195,6 @@ function handleLinePointerUp(event) {
 
   const overlayEl = event.currentTarget;
   const pageNo = Number(overlayEl.dataset.pageNo);
-
   if (Number(state.lineDrag.pageNo) !== pageNo) return;
 
   if (!Array.isArray(state.figureCaptionSelectedLineIds)) {
@@ -236,7 +221,6 @@ function handleLinePointerUp(event) {
         ];
       } else {
         addLinesToSelection(ids, dragTarget);
-
         if (dragTarget === "body") {
           applyAutoHeadingFromBodySelection();
         }
@@ -245,7 +229,6 @@ function handleLinePointerUp(event) {
   } else if (startedOnLineId != null) {
     if (isFigureMode) {
       const id = Number(startedOnLineId);
-
       if (state.figureCaptionSelectedLineIds.includes(id)) {
         state.figureCaptionSelectedLineIds =
           state.figureCaptionSelectedLineIds.filter((x) => x !== id);
@@ -257,8 +240,7 @@ function handleLinePointerUp(event) {
       }
     } else {
       toggleLineSelection(startedOnLineId, dragTarget);
-
-       if (dragTarget === "body") {
+      if (dragTarget === "body") {
         applyAutoHeadingFromBodySelection();
       }
     }
@@ -286,6 +268,8 @@ function handleLinePointerUp(event) {
 
 function bindPageOverlayEvents() {
   for (const page of state.pageDomByNo.values()) {
+    if (page.eventsBound) continue;
+
     page.lineOverlay.addEventListener("pointerdown", handleLinePointerDown);
     page.lineOverlay.addEventListener("pointermove", handleLinePointerMove);
     page.lineOverlay.addEventListener("pointerup", handleLinePointerUp);
@@ -309,6 +293,38 @@ function bindPageOverlayEvents() {
       event.preventDefault();
       renderFigureBoxes();
     });
+
+    page.eventsBound = true;
+  }
+}
+
+function setupPageObserver() {
+  state.pageObserver?.disconnect();
+
+  if (typeof IntersectionObserver !== "function") {
+    return;
+  }
+
+  state.pageObserver = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+
+        const pageNo = Number(entry.target.dataset.pageNo);
+        ensureNearbyPages(pageNo).catch((err) => {
+          console.error(err);
+        });
+      }
+    },
+    {
+      root: null,
+      rootMargin: "1200px 0px",
+      threshold: 0.01,
+    }
+  );
+
+  for (const page of state.pageDomByNo.values()) {
+    state.pageObserver.observe(page.block);
   }
 }
 
@@ -318,8 +334,10 @@ function clampZoom(value) {
 
 function updateZoomLabel() {
   if (!els.zoomLabel) return;
+
   const percent = Math.round(state.zoom * 100);
   els.zoomLabel.textContent = `${percent}%`;
+
   if (els.zoomResetBtn) {
     els.zoomResetBtn.textContent = `${percent}%`;
   }
@@ -332,6 +350,7 @@ function applyZoom() {
       page.block.style.marginLeft = "auto";
       page.block.style.marginRight = "auto";
     }
+
     syncOverlaySize(Number(page.lineOverlay.dataset.pageNo));
   }
 
@@ -369,6 +388,23 @@ function isTypingTarget(target) {
     target.isContentEditable
   );
 }
+
+async function jumpToPage(pageNo, behavior = "smooth") {
+  state.pageNo = Number(pageNo);
+
+  if (els.pageSelect) {
+    els.pageSelect.value = String(state.pageNo);
+  }
+
+  await ensureNearbyPages(state.pageNo);
+
+  const page = state.pageDomByNo.get(state.pageNo);
+  page?.block?.scrollIntoView({
+    behavior,
+    block: "start",
+  });
+}
+
 function bindEvents() {
   els.saveTitleBtn?.addEventListener("click", () => {
     saveTitle().catch((err) => showToast(err.message, true));
@@ -404,20 +440,11 @@ function bindEvents() {
 
   els.pageSelect?.addEventListener("change", () => {
     const pageNo = Number(els.pageSelect.value);
-    const page = state.pageDomByNo.get(pageNo);
-
-    page?.block?.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
+    jumpToPage(pageNo).catch((err) => showToast(err.message, true));
   });
 
   els.reloadBtn?.addEventListener("click", () => {
-    loadAllPages()
-      .then(() => {
-        bindPageOverlayEvents();
-      })
-      .catch((err) => showToast(err.message, true));
+    reloadLoadedPages().catch((err) => showToast(err.message, true));
   });
 
   window.addEventListener("resize", () => {
@@ -444,7 +471,6 @@ function bindEvents() {
     if (key === "s") {
       event.preventDefault();
       zoomOut();
-      return;
     }
   });
 
@@ -469,33 +495,7 @@ function getQueryParam(name) {
 
 function scrollToCurrentPage() {
   const page = state.pageDomByNo.get(Number(state.pageNo));
-  page?.block?.scrollIntoView({
-    behavior: "auto",
-    block: "start",
-  });
-}
-async function loadParagraphForEdit() {
-  if (!state.editParagraphId) return;
-
-  const result = await loadParagraphForEditData(state.editParagraphId);
-
-  setSelectedIdArray("heading", result.heading_line_ids || []);
-  setSelectedIdArray("body", result.body_line_ids || []);
-
-  if (els.orderIndex) {
-    els.orderIndex.value = String(result.paragraph.order_index ?? 1);
-  }
-  if (els.unitType) {
-    els.unitType.value = result.paragraph.unit_type || "body";
-  }
-
-  const firstBodyId = (result.body_line_ids || [])[0];
-  if (firstBodyId != null) {
-    const firstLine = state.lineIndex.get(Number(firstBodyId));
-    if (firstLine) {
-      state.pageNo = Number(firstLine.page_no);
-    }
-  }
+  page?.block?.scrollIntoView({ behavior: "auto", block: "start" });
 }
 
 async function init() {
@@ -510,31 +510,20 @@ async function init() {
     state.pageNo = Number(pageParam);
   }
 
-  const editParagraphParam = getQueryParam("edit_paragraph_id");
-    if (editParagraphParam !== null) {
-      state.editParagraphId = Number(editParagraphParam);
-    }
-
   bindEvents();
-
   switchHeaderTab("paragraph");
 
-  refreshSelectionView();
-  updateFigureTexts();
-
-  await loadAllPages();
-
-  if (state.editParagraphId) {
-    await loadParagraphForEdit();// 編集対象のパラグラフがある場合はそれをロード
-  } else {
-    await syncNextOrderIndex();// 最新の order_index を取得しておく
-  }
+  createPageStack();
   bindPageOverlayEvents();
+  setupPageObserver();
+
+  await loadInitialPages(state.pageNo);
+  await syncNextOrderIndex();
 
   if (els.pageSelect) {
     els.pageSelect.value = String(state.pageNo || 0);
   }
-  refreshSelectionView();
+
   scrollToCurrentPage();
 }
 

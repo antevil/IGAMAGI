@@ -3,12 +3,19 @@ import { boot } from "./dom.js";
 export const state = {
   docId: boot.docId,
   pageNo: boot.initialPageNo || 0,
+
   pages: Array.isArray(boot.pages) ? boot.pages : [],
 
   linesByPage: new Map(),
   pageNaturalSizeByPage: new Map(),
   pageDomByNo: new Map(),
   lineIndex: new Map(),
+
+  // 遅延ロード用
+  loadedPageNos: new Set(),
+  loadingPagePromises: new Map(),
+  preloadRadius: 1,
+  pageObserver: null,
 
   activeTab: "paragraph",
 
@@ -33,7 +40,7 @@ export const state = {
   imageBBox: null,
   figurePageNo: null,
   drawing: null,
-
+  figureCaptionSelectedLineIds: [],
   figureCache: [],
 
   zoom: 1,
@@ -42,7 +49,6 @@ export const state = {
   zoomStep: 0.1,
 
   editParagraphId: null,
-
   mode: "line",
 };
 

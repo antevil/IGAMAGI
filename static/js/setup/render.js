@@ -33,14 +33,14 @@ export function createPageStack() {
     img.className = "page-image";
     img.alt = `Page ${pageNo + 1}`;
     img.draggable = false;
+    img.loading = "lazy";
 
     const lineOverlay = document.createElement("div");
     lineOverlay.className = "pdf-overlay";
     lineOverlay.dataset.pageNo = String(pageNo);
 
-    wrap.appendChild(img); 
+    wrap.appendChild(img);
     wrap.appendChild(lineOverlay);
-
     block.appendChild(label);
     block.appendChild(wrap);
     fragment.appendChild(block);
@@ -50,6 +50,7 @@ export function createPageStack() {
       wrap,
       img,
       lineOverlay,
+      eventsBound: false,
     });
   }
 
@@ -83,6 +84,7 @@ export function updateSelectionUI() {
     els.selectionTargetHint.textContent =
       "通常ドラッグ/クリックで Body、Shift+ドラッグ/クリックで Heading を選択できます。";
   }
+
   if (els.headingCountBadge) {
     els.headingCountBadge.textContent = `Heading ${headingLines.length}行`;
   }
@@ -114,7 +116,7 @@ export function renderLinesForPage(pageNo) {
     div.className = "line-box";
     div.dataset.lineId = String(line.id);
 
-    // まず保存済み状態の色を付ける
+    // 保存済み状態
     if (line.usage_type === "paragraph_heading") {
       div.classList.add("used-heading");
     } else if (line.usage_type === "paragraph_body") {
@@ -123,7 +125,7 @@ export function renderLinesForPage(pageNo) {
       div.classList.add("used-caption");
     }
 
-    // 次に「今選択中」の色を上書き気味で付ける
+    // 現在選択中
     const inHeading = isLineSelected(line.id, "heading");
     const inBody = isLineSelected(line.id, "body");
     const inFigureCaption =
@@ -142,8 +144,14 @@ export function renderLinesForPage(pageNo) {
 
     div.style.left = `${scaleX(pageNo, line.x0)}px`;
     div.style.top = `${scaleY(pageNo, line.y0)}px`;
-    div.style.width = `${Math.max(3, scaleX(pageNo, line.x1) - scaleX(pageNo, line.x0))}px`;
-    div.style.height = `${Math.max(3, scaleY(pageNo, line.y1) - scaleY(pageNo, line.y0))}px`;
+    div.style.width = `${Math.max(
+      3,
+      scaleX(pageNo, line.x1) - scaleX(pageNo, line.x0)
+    )}px`;
+    div.style.height = `${Math.max(
+      3,
+      scaleY(pageNo, line.y1) - scaleY(pageNo, line.y0)
+    )}px`;
     div.title = `${line.line_no}: ${line.text || ""}`;
 
     fragment.appendChild(div);
@@ -216,7 +224,9 @@ function placeRect(pageNo, el, bbox) {
 
 export function renderFigureBoxes() {
   for (const page of state.pageDomByNo.values()) {
-    page.lineOverlay.querySelectorAll(".draw-rect").forEach((el) => el.remove());
+    page.lineOverlay
+      .querySelectorAll(".draw-rect")
+      .forEach((el) => el.remove());
   }
 
   if (state.figurePageNo == null) return;
@@ -246,13 +256,19 @@ export function updateFigureTexts() {
 }
 
 function paragraphCard(paragraph) {
-  //あとで削除
   const card = document.createElement("div");
-  card.className = "rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3";
+  card.className =
+    "rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3";
   card.innerHTML = `
-    <div class="text-base font-semibold">#${paragraph.order_index} ${escapeHtml(paragraph.heading_text || "(no heading)")}</div>
-    <div class="text-sm text-zinc-400">${escapeHtml(paragraph.unit_type)} / p.${paragraph.page_no + 1} - ${paragraph.end_page_no + 1}</div>
-    <div class="text-sm text-zinc-200 whitespace-pre-wrap">${escapeHtml(paragraph.raw_text || "")}</div>
+    <div class="font-medium">#${paragraph.order_index} ${escapeHtml(
+      paragraph.heading_text || "(no heading)"
+    )}</div>
+    <div class="text-xs text-zinc-400">${escapeHtml(
+      paragraph.unit_type
+    )} / p.${paragraph.page_no + 1} - ${paragraph.end_page_no + 1}</div>
+    <div class="text-sm leading-6 whitespace-pre-wrap">${escapeHtml(
+      paragraph.raw_text || ""
+    )}</div>
   `;
   return card;
 }

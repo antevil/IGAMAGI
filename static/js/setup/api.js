@@ -1,65 +1,171 @@
 import { els } from "./dom.js";
 import { state } from "./state.js";
 import {
+  clearSelectionState,
   getRepresentativeRangeIds,
   getSelectedLines,
 } from "./selection.js";
-import {
-  createPageStack,
-  renderAllLines,
-  renderFigureBoxes,
-  refreshSelectionView,
-  updateFigureTexts,
-  applyMode,
-} from "./render.js";
 import { clearFigureSelection } from "./figure.js";
-import { clearSelectionState } from "./selection.js";
+import {
+  applyMode,
+  refreshSelectionView,
+  renderFigureBoxes,
+  renderLinesForPage,
+  updateFigureTexts,
+  updateSelectionUI,
+} from "./render.js";
 import { fetchJSON, showToast, syncOverlaySize } from "./utils.js";
 
-async function loadSinglePage(pageNo) {
+function getPageNumbers() {
+  return state.pages.map((page) => Number(page.page_no)).sort((a, b) => a - b);
+}
+
+function getNearbyPageNos(centerPageNo, radius = state.preloadRadius) {
+  const pageNos = getPageNumbers();
+  const index = pageNos.indexOf(Number(centerPageNo));
+
+  if (index < 0) {
+    return pageNos.length ? [pageNos[0]] : [];
+  }
+
+  const result = [];
+  const start = Math.max(0, index - radius);
+  const end = Math.min(pageNos.length - 1, index + radius);
+
+  for (let i = start; i <= end; i += 1) {
+    result.push(pageNos[i]);
+  }
+
+  return result;
+}
+
+function buildPreviewUrl(pageNo, { cacheBust = false } = {}) {
+  const base = `/api/docs/${state.docId}/pages/${pageNo}/preview`;
+  return cacheBust ? `${base}?ts=${Date.now()}` : base;
+}
+
+function resetLoadedPageState() {
+  state.linesByPage.clear();
+  state.pageNaturalSizeByPage.clear();
+  state.lineIndex.clear();
+  state.loadedPageNos.clear();
+  state.loadingPagePromises.clear();
+}
+
+async function loadPageImage(pageNo, { force = false, cacheBust = false } = {}) {
   const page = state.pageDomByNo.get(Number(pageNo));
   if (!page) return;
 
-  page.img.src = `/api/docs/${state.docId}/pages/${pageNo}/preview?ts=${Date.now()}`;
+  const nextSrc = buildPreviewUrl(pageNo, { cacheBust });
+  if (!force && page.img.dataset.loaded === "1" && page.img.dataset.src === nextSrc) {
+    return;
+  }
 
   await new Promise((resolve, reject) => {
-    page.img.onload = resolve;
+    page.img.onload = () => {
+      page.img.dataset.loaded = "1";
+      page.img.dataset.src = nextSrc;
+      resolve();
+    };
     page.img.onerror = reject;
+    page.img.src = nextSrc;
   });
+}
 
-  const payload = await fetchJSON(`/api/docs/${state.docId}/pages/${pageNo}/lines`);
+function replacePageLines(pageNo, lines) {
+  const oldLines = state.linesByPage.get(Number(pageNo)) || [];
+  for (const oldLine of oldLines) {
+    state.lineIndex.delete(Number(oldLine.id));
+  }
 
-  state.pageNaturalSizeByPage.set(Number(pageNo), {
-    width: payload.page_width || 1,
-    height: payload.page_height || 1,
-  });
-
-  const lines = Array.isArray(payload.lines) ? payload.lines : [];
   state.linesByPage.set(Number(pageNo), lines);
 
   for (const line of lines) {
     state.lineIndex.set(Number(line.id), line);
   }
-
-  syncOverlaySize(pageNo);
-  renderAllLines();
-  renderFigureBoxes();
-  updateFigureTexts();
-  applyMode();
-  refreshSelectionView();
 }
 
-export async function loadAllPages() {
-  state.linesByPage.clear();
-  state.pageNaturalSizeByPage.clear();
-  state.lineIndex.clear();
+export async function loadSinglePage(
+  pageNo,
+  { force = false, cacheBust = false } = {}
+) {
+  const normalizedPageNo = Number(pageNo);
 
-  createPageStack();
+  if (!force && state.loadedPageNos.has(normalizedPageNo)) {
+    return;
+  }
 
-  const tasks = state.pages.map((page) => loadSinglePage(page.page_no));
-  await Promise.all(tasks);
+  if (!force && state.loadingPagePromises.has(normalizedPageNo)) {
+    return state.loadingPagePromises.get(normalizedPageNo);
+  }
 
-  applyMode();
+  const task = (async () => {
+    const page = state.pageDomByNo.get(normalizedPageNo);
+    if (!page) return;
+
+    await loadPageImage(normalizedPageNo, { force, cacheBust });
+
+    const payload = await fetchJSON(
+      `/api/docs/${state.docId}/pages/${normalizedPageNo}/lines`
+    );
+
+    state.pageNaturalSizeByPage.set(normalizedPageNo, {
+      width: payload.page_width || 1,
+      height: payload.page_height || 1,
+    });
+
+    const lines = Array.isArray(payload.lines) ? payload.lines : [];
+    replacePageLines(normalizedPageNo, lines);
+
+    syncOverlaySize(normalizedPageNo);
+    renderLinesForPage(normalizedPageNo);
+    applyMode();
+    updateSelectionUI();
+
+    if (state.figurePageNo === normalizedPageNo) {
+      renderFigureBoxes();
+      updateFigureTexts();
+    }
+
+    state.loadedPageNos.add(normalizedPageNo);
+  })();
+
+  state.loadingPagePromises.set(normalizedPageNo, task);
+
+  try {
+    await task;
+  } finally {
+    state.loadingPagePromises.delete(normalizedPageNo);
+  }
+}
+
+export async function ensureNearbyPages(pageNo, options = {}) {
+  const { force = false, cacheBust = false } = options;
+  const targets = getNearbyPageNos(pageNo);
+
+  await Promise.all(
+    targets.map((targetPageNo) =>
+      loadSinglePage(targetPageNo, { force, cacheBust })
+    )
+  );
+}
+
+export async function loadInitialPages(pageNo = state.pageNo) {
+  resetLoadedPageState();
+  await ensureNearbyPages(pageNo, { force: true, cacheBust: false });
+}
+
+export async function reloadLoadedPages() {
+  const targets = state.loadedPageNos.size
+    ? [...state.loadedPageNos]
+    : getNearbyPageNos(state.pageNo);
+
+  await Promise.all(
+    targets.map((pageNo) =>
+      loadSinglePage(pageNo, { force: true, cacheBust: true })
+    )
+  );
+
   refreshSelectionView();
   renderFigureBoxes();
   updateFigureTexts();
@@ -110,7 +216,8 @@ export async function saveParagraph(options = {}) {
     unit_type: els.unitType.value,
   };
 
-  const isEdit = Number.isFinite(state.editParagraphId) && state.editParagraphId > 0;
+  const isEdit =
+    Number.isFinite(state.editParagraphId) && state.editParagraphId > 0;
 
   const result = isEdit
     ? await fetchJSON(`/api/paragraphs/${state.editParagraphId}`, {
@@ -130,17 +237,19 @@ export async function saveParagraph(options = {}) {
 
   const translateResult = await fetchJSON(
     `/api/paragraphs/${result.paragraph_id}/translate`,
-    { method: "POST" }
+    {
+      method: "POST",
+    }
   );
 
   showToast(
     !translateResult.deepl_enabled
-      ? (isEdit
-          ? "段落を更新しました。DeepLキー未設定のため翻訳は空です"
-          : "保存しました。DeepLキー未設定のため翻訳は空です")
-      : (isEdit
-          ? "段落を更新して再翻訳しました"
-          : "保存・文分割・翻訳まで完了しました")
+      ? isEdit
+        ? "段落を更新しました。DeepLキー未設定のため翻訳は空です"
+        : "保存しました。DeepLキー未設定のため翻訳は空です"
+      : isEdit
+      ? "段落を更新して再翻訳しました"
+      : "保存・文分割・翻訳まで完了しました"
   );
 
   clearSelectionState();
@@ -151,13 +260,14 @@ export async function saveParagraph(options = {}) {
   }
 
   if (openViewer) {
-    window.location.href =
-      `/docs/${state.docId}/reader?paragraph_id=${result.paragraph_id}`;
+    window.location.href = `/docs/${state.docId}/reader?paragraph_id=${result.paragraph_id}`;
   }
 }
+
 export async function loadParagraphForEditData(paragraphId) {
   return await fetchJSON(`/api/paragraphs/${paragraphId}`);
 }
+
 export async function saveFigure() {
   if (!state.imageBBox) {
     showToast("図本体のbboxを選択してください", true);
@@ -168,6 +278,7 @@ export async function saveFigure() {
     showToast("figure の page が不明です", true);
     return;
   }
+
   if (!Array.isArray(state.figureCaptionSelectedLineIds)) {
     state.figureCaptionSelectedLineIds = [];
   }
@@ -176,7 +287,6 @@ export async function saveFigure() {
     showToast("caption line を選択してください", true);
     return;
   }
-
 
   const payload = {
     fig_no: els.figNoInput.value.trim() || "FIG",
@@ -197,13 +307,7 @@ export async function saveFigure() {
 
   clearFigureSelection();
   state.figureCaptionSelectedLineIds = [];
-
   updateFigureTexts();
   renderFigureBoxes();
-
-  if (typeof loadFigures === "function") {
-    await loadFigures();
-  }
-
   refreshSelectionView();
 }
