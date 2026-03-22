@@ -8,6 +8,7 @@ import {
 import { clearFigureSelection } from "./figure.js";
 import {
   applyMode,
+  ensurePageShell,
   refreshSelectionView,
   renderFigureBoxes,
   renderLinesForPage,
@@ -53,7 +54,7 @@ function resetLoadedPageState() {
 }
 
 async function loadPageImage(pageNo, { force = false, cacheBust = false } = {}) {
-  const page = state.pageDomByNo.get(Number(pageNo));
+  const page = ensurePageShell(pageNo);
   if (!page) return;
 
   const nextSrc = buildPreviewUrl(pageNo, { cacheBust });
@@ -100,8 +101,7 @@ export async function loadSinglePage(
   }
 
   const task = (async () => {
-    const page = state.pageDomByNo.get(normalizedPageNo);
-    if (!page) return;
+    ensurePageShell(normalizedPageNo);
 
     await loadPageImage(normalizedPageNo, { force, cacheBust });
 

@@ -26,35 +26,58 @@ export function createPageStack() {
     label.className = "page-label";
     label.textContent = `Page ${pageNo + 1}`;
 
-    const wrap = document.createElement("div");
-    wrap.className = "pdf-wrap";
+    // 最初は軽いプレースホルダだけ置く
+    const mount = document.createElement("div");
+    mount.className = "page-shell-mount";
+    mount.dataset.pageNo = String(pageNo);
+    mount.style.minHeight = "240px";
 
-    const img = document.createElement("img");
-    img.className = "page-image";
-    img.alt = `Page ${pageNo + 1}`;
-    img.draggable = false;
-    img.loading = "lazy";
-
-    const lineOverlay = document.createElement("div");
-    lineOverlay.className = "pdf-overlay";
-    lineOverlay.dataset.pageNo = String(pageNo);
-
-    wrap.appendChild(img);
-    wrap.appendChild(lineOverlay);
     block.appendChild(label);
-    block.appendChild(wrap);
+    block.appendChild(mount);
     fragment.appendChild(block);
 
     state.pageDomByNo.set(pageNo, {
       block,
-      wrap,
-      img,
-      lineOverlay,
-      eventsBound: false,
+      mount,
+      wrap: null,
+      img: null,
+      lineOverlay: null,
     });
   }
 
   els.pdfStack.appendChild(fragment);
+}
+
+export function ensurePageShell(pageNo) {
+  const page = state.pageDomByNo.get(Number(pageNo));
+  if (!page) return null;
+
+  if (page.wrap && page.img && page.lineOverlay) {
+    return page;
+  }
+
+  const wrap = document.createElement("div");
+  wrap.className = "pdf-wrap";
+
+  const img = document.createElement("img");
+  img.className = "page-image";
+  img.alt = `Page ${Number(pageNo) + 1}`;
+  img.draggable = false;
+  img.loading = "lazy";
+
+  const lineOverlay = document.createElement("div");
+  lineOverlay.className = "pdf-overlay";
+  lineOverlay.dataset.pageNo = String(pageNo);
+
+  wrap.appendChild(img);
+  wrap.appendChild(lineOverlay);
+  page.mount.appendChild(wrap);
+
+  page.wrap = wrap;
+  page.img = img;
+  page.lineOverlay = lineOverlay;
+
+  return page;
 }
 
 export function applyMode() {
@@ -62,6 +85,7 @@ export function applyMode() {
   const isFigureMode = state.mode === "figure";
 
   for (const page of state.pageDomByNo.values()) {
+    if (!page.lineOverlay) continue;
     page.lineOverlay.style.pointerEvents = "auto";
     page.lineOverlay.style.zIndex = "20";
   }
@@ -103,8 +127,8 @@ export function updateSelectionUI() {
 }
 
 export function renderLinesForPage(pageNo) {
-  const page = state.pageDomByNo.get(Number(pageNo));
-  if (!page) return;
+  const page = ensurePageShell(pageNo);
+  if (!page || !page.lineOverlay) return;
 
   page.lineOverlay.innerHTML = "";
 
@@ -116,7 +140,6 @@ export function renderLinesForPage(pageNo) {
     div.className = "line-box";
     div.dataset.lineId = String(line.id);
 
-    // 保存済み状態
     if (line.usage_type === "paragraph_heading") {
       div.classList.add("used-heading");
     } else if (line.usage_type === "paragraph_body") {
@@ -125,7 +148,6 @@ export function renderLinesForPage(pageNo) {
       div.classList.add("used-caption");
     }
 
-    // 現在選択中
     const inHeading = isLineSelected(line.id, "heading");
     const inBody = isLineSelected(line.id, "body");
     const inFigureCaption =
@@ -169,14 +191,14 @@ export function renderLinesForPage(pageNo) {
 }
 
 export function renderAllLines() {
-  for (const pageMeta of state.pages) {
-    renderLinesForPage(pageMeta.page_no);
+  for (const pageNo of state.loadedPageNos) {
+    renderLinesForPage(pageNo);
   }
 }
 
 function getOrCreateDragRectElement() {
   const page = state.pageDomByNo.get(Number(state.lineDrag.pageNo));
-  if (!page) return null;
+  if (!page?.lineOverlay) return null;
 
   let el = page.lineOverlay.querySelector(".drag-rect");
   if (!el) {
@@ -189,6 +211,7 @@ function getOrCreateDragRectElement() {
 
 export function removeDragRect() {
   for (const page of state.pageDomByNo.values()) {
+    if (!page.lineOverlay) continue;
     page.lineOverlay.querySelector(".drag-rect")?.remove();
   }
 }
@@ -224,6 +247,7 @@ function placeRect(pageNo, el, bbox) {
 
 export function renderFigureBoxes() {
   for (const page of state.pageDomByNo.values()) {
+    if (!page.lineOverlay) continue;
     page.lineOverlay
       .querySelectorAll(".draw-rect")
       .forEach((el) => el.remove());
@@ -231,8 +255,8 @@ export function renderFigureBoxes() {
 
   if (state.figurePageNo == null) return;
 
-  const page = state.pageDomByNo.get(Number(state.figurePageNo));
-  if (!page) return;
+  const page = ensurePageShell(state.figurePageNo);
+  if (!page?.lineOverlay) return;
 
   if (state.imageBBox) {
     const rect = document.createElement("div");
@@ -255,13 +279,13 @@ export function updateFigureTexts() {
   }
 }
 
-
 export function refreshSelectionView(pageNos = null) {
   updateSelectionUI();
 
-  const targets = Array.isArray(pageNos) && pageNos.length
-    ? pageNos
-    : [...state.loadedPageNos];
+  const targets =
+    Array.isArray(pageNos) && pageNos.length
+      ? pageNos
+      : [...state.loadedPageNos];
 
   for (const pageNo of targets) {
     renderLinesForPage(pageNo);

@@ -136,7 +136,8 @@ function getIntersectingLineIdsFromDrag() {
 function handleLinePointerDown(event) {
   if (event.button !== 0) return;
 
-  const overlayEl = event.currentTarget;
+  const overlayEl = getOverlayFromEvent(event);
+  if (!overlayEl) return;
   const pageNo = Number(overlayEl.dataset.pageNo);
   const point = overlayPointFromEvent(event, overlayEl);
   const lineBox = event.target.closest(".line-box");
@@ -166,7 +167,8 @@ function handleLinePointerDown(event) {
 function handleLinePointerMove(event) {
   if (!state.lineDrag.active) return;
 
-  const overlayEl = event.currentTarget;
+  const overlayEl = getOverlayFromEvent(event);
+  if (!overlayEl) return;
   const pageNo = Number(overlayEl.dataset.pageNo);
   if (Number(state.lineDrag.pageNo) !== pageNo) return;
 
@@ -193,7 +195,8 @@ function handleLinePointerMove(event) {
 function handleLinePointerUp(event) {
   if (!state.lineDrag.active) return;
 
-  const overlayEl = event.currentTarget;
+  const overlayEl = getOverlayFromEvent(event);
+  if (!overlayEl) return;
   const pageNo = Number(overlayEl.dataset.pageNo);
   if (Number(state.lineDrag.pageNo) !== pageNo) return;
 
@@ -267,35 +270,36 @@ function handleLinePointerUp(event) {
 }
 
 function bindPageOverlayEvents() {
-  for (const page of state.pageDomByNo.values()) {
-    if (page.eventsBound) continue;
+  if (!els.pdfStack) return;
 
-    page.lineOverlay.addEventListener("pointerdown", handleLinePointerDown);
-    page.lineOverlay.addEventListener("pointermove", handleLinePointerMove);
-    page.lineOverlay.addEventListener("pointerup", handleLinePointerUp);
-    page.lineOverlay.addEventListener("pointercancel", handleLinePointerUp);
-    page.lineOverlay.addEventListener("dragstart", (event) =>
-      event.preventDefault()
+  els.pdfStack.addEventListener("pointerdown", handleLinePointerDown);
+  els.pdfStack.addEventListener("pointermove", handleLinePointerMove);
+  els.pdfStack.addEventListener("pointerup", handleLinePointerUp);
+  els.pdfStack.addEventListener("pointercancel", handleLinePointerUp);
+
+  els.pdfStack.addEventListener("dragstart", (event) => {
+    if (event.target.closest(".pdf-overlay")) {
+      event.preventDefault();
+    }
+  });
+
+  els.pdfStack.addEventListener("mousedown", (event) => {
+    const overlayEl = event.target.closest(".pdf-overlay");
+    if (!overlayEl) return;
+    if (state.mode !== "figure") return;
+    if (event.target.closest(".line-box")) return;
+
+    const started = startFigureDraw(
+      event,
+      Number(overlayEl.dataset.pageNo),
+      overlayEl
     );
 
-    page.lineOverlay.addEventListener("mousedown", (event) => {
-      if (state.mode !== "figure") return;
-      if (event.target.closest(".line-box")) return;
+    if (!started) return;
 
-      const started = startFigureDraw(
-        event,
-        Number(page.lineOverlay.dataset.pageNo),
-        page.lineOverlay
-      );
-
-      if (!started) return;
-
-      event.preventDefault();
-      renderFigureBoxes();
-    });
-
-    page.eventsBound = true;
-  }
+    event.preventDefault();
+    renderFigureBoxes();
+  });
 }
 
 function setupPageObserver() {
@@ -351,7 +355,9 @@ function applyZoom() {
       page.block.style.marginRight = "auto";
     }
 
-    syncOverlaySize(Number(page.lineOverlay.dataset.pageNo));
+     if (page.lineOverlay) {
+      syncOverlaySize(Number(page.lineOverlay.dataset.pageNo));
+    }
   }
 
   refreshSelectionView();
@@ -448,8 +454,8 @@ function bindEvents() {
   });
 
   window.addEventListener("resize", () => {
-    for (const pageMeta of state.pages) {
-      syncOverlaySize(pageMeta.page_no);
+    for (const pageNo of state.loadedPageNos) {
+      syncOverlaySize(pageNo);
     }
     refreshSelectionView();
     renderFigureBoxes();
@@ -496,6 +502,10 @@ function getQueryParam(name) {
 function scrollToCurrentPage() {
   const page = state.pageDomByNo.get(Number(state.pageNo));
   page?.block?.scrollIntoView({ behavior: "auto", block: "start" });
+}
+
+function getOverlayFromEvent(event) {
+  return event.target.closest(".pdf-overlay") || state.lineDrag.overlayEl || null;
 }
 
 async function init() {
