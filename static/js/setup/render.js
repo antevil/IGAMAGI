@@ -189,13 +189,6 @@ export function renderLinesForPage(pageNo) {
     renderDragRect();
   }
 }
-
-export function renderAllLines() {
-  for (const pageNo of state.loadedPageNos) {
-    renderLinesForPage(pageNo);
-  }
-}
-
 function getOrCreateDragRectElement() {
   const page = state.pageDomByNo.get(Number(state.lineDrag.pageNo));
   if (!page?.lineOverlay) return null;
