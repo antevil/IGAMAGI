@@ -5,7 +5,7 @@ import {
   getSelectedLines,
   isLineSelected,
 } from "./selection.js";
-import { escapeHtml, normalizeRect, scaleX, scaleY } from "./utils.js";
+import { normalizeRect, scaleX, scaleY } from "./utils.js";
 
 export function createPageStack() {
   if (!els.pdfStack) return;
@@ -255,23 +255,6 @@ export function updateFigureTexts() {
   }
 }
 
-function paragraphCard(paragraph) {
-  const card = document.createElement("div");
-  card.className =
-    "rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3";
-  card.innerHTML = `
-    <div class="font-medium">#${paragraph.order_index} ${escapeHtml(
-      paragraph.heading_text || "(no heading)"
-    )}</div>
-    <div class="text-xs text-zinc-400">${escapeHtml(
-      paragraph.unit_type
-    )} / p.${paragraph.page_no + 1} - ${paragraph.end_page_no + 1}</div>
-    <div class="text-sm leading-6 whitespace-pre-wrap">${escapeHtml(
-      paragraph.raw_text || ""
-    )}</div>
-  `;
-  return card;
-}
 
 export function refreshSelectionView(pageNos = null) {
   updateSelectionUI();
