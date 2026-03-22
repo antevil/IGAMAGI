@@ -26,7 +26,6 @@ export function createPageStack() {
     label.className = "page-label";
     label.textContent = `Page ${pageNo + 1}`;
 
-    // 最初は軽いプレースホルダだけ置く
     const mount = document.createElement("div");
     mount.className = "page-shell-mount";
     mount.dataset.pageNo = String(pageNo);
@@ -189,6 +188,7 @@ export function renderLinesForPage(pageNo) {
     renderDragRect();
   }
 }
+
 function getOrCreateDragRectElement() {
   const page = state.pageDomByNo.get(Number(state.lineDrag.pageNo));
   if (!page?.lineOverlay) return null;

@@ -25,6 +25,7 @@ import {
 import {
   ensureNearbyPages,
   loadInitialPages,
+  loadParagraphForEditData,
   reloadLoadedPages,
   saveFigure,
   saveParagraph,
@@ -267,6 +268,43 @@ function handleLinePointerUp(event) {
 
   event.preventDefault();
   event.stopPropagation();
+}
+
+function getEditParagraphId() {
+  const raw = getQueryParam("edit_paragraph_id");
+  if (raw == null) return null;
+
+  const id = Number(raw);
+  return Number.isFinite(id) && id > 0 ? id : null;
+}
+
+async function restoreParagraphForEdit(paragraphId) {
+  const result = await loadParagraphForEditData(paragraphId);
+
+  state.editParagraphId = Number(paragraphId);
+
+  const paragraph = result.paragraph || result;
+  const headingIds =
+    result.heading_line_ids || result.headingSelectedLineIds || [];
+  const bodyIds =
+    result.body_line_ids || result.selected_line_ids || result.bodySelectedLineIds || [];
+
+  setSelectedIdArray("heading", headingIds);
+  setSelectedIdArray("body", bodyIds);
+
+  if (els.orderIndex && paragraph.order_index != null) {
+    els.orderIndex.value = String(paragraph.order_index);
+  }
+
+  if (els.unitType && paragraph.unit_type) {
+    els.unitType.value = paragraph.unit_type;
+  }
+
+  if (Number.isFinite(Number(paragraph.page_no))) {
+    state.pageNo = Number(paragraph.page_no);
+  }
+
+  refreshSelectionView();
 }
 
 function bindPageOverlayEvents() {
@@ -513,11 +551,6 @@ function getQueryParam(name) {
   return url.searchParams.get(name);
 }
 
-function scrollToCurrentPage() {
-  const page = state.pageDomByNo.get(Number(state.pageNo));
-  page?.block?.scrollIntoView({ behavior: "auto", block: "start" });
-}
-
 function getOverlayFromEvent(event) {
   return event.target.closest(".pdf-overlay") || state.lineDrag.overlayEl || null;
 }
@@ -533,6 +566,7 @@ async function init() {
   if (pageParam !== null) {
     state.pageNo = Number(pageParam);
   }
+  const editParagraphId = getEditParagraphId();
 
   bindEvents();
   switchHeaderTab("paragraph");
@@ -541,14 +575,20 @@ async function init() {
   bindPageOverlayEvents();
   setupPageObserver();
 
+  if (editParagraphId) {
+    await restoreParagraphForEdit(editParagraphId);
+  } else {
+    await syncNextOrderIndex();
+  }
+
   await loadInitialPages(state.pageNo);
-  await syncNextOrderIndex();
 
   if (els.pageSelect) {
     els.pageSelect.value = String(state.pageNo || 0);
   }
-
-  scrollToCurrentPage();
+  await jumpToPage(state.pageNo, "auto");
+  refreshSelectionView();
+  updateFigureTexts();
 }
 
 init().catch((err) => {

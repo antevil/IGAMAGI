@@ -55,10 +55,14 @@ function resetLoadedPageState() {
 
 async function loadPageImage(pageNo, { force = false, cacheBust = false } = {}) {
   const page = ensurePageShell(pageNo);
-  if (!page) return;
+  if (!page?.img) return;
 
   const nextSrc = buildPreviewUrl(pageNo, { cacheBust });
-  if (!force && page.img.dataset.loaded === "1" && page.img.dataset.src === nextSrc) {
+  if (
+    !force &&
+    page.img.dataset.loaded === "1" &&
+    page.img.dataset.src === nextSrc
+  ) {
     return;
   }
 

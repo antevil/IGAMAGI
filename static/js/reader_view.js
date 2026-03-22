@@ -141,10 +141,10 @@ function applyInitialParagraphFromQuery() {
 
     body.querySelector(".editBtn").addEventListener("click", (event) => {
       //パラグラフ編集ボタンのクリックイベント
-      event.stopPropagation();
-      window.location.href =
-        `/docs/${state.docId}/setup?edit_paragraph_id=${paragraph.id}`;
-    });
+       event.stopPropagation();
+  window.location.href =
+    `/docs/${state.docId}/setup?page=${paragraph.page_no}&edit_paragraph_id=${paragraph.id}`;
+});
 
     body.querySelector(".splitBtn").addEventListener("click", async (event) => {
       event.stopPropagation();
