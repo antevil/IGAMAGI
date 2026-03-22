@@ -41,6 +41,8 @@ export const state = {
   maxZoom: 1.6,
   zoomStep: 0.1,
 
+  editParagraphId: null,
+
   mode: "line",
 };
 

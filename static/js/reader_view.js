@@ -96,6 +96,9 @@ function applyInitialParagraphFromQuery() {
     const actionRow = document.createElement("div");
     actionRow.className = "flex justify-end";
     actionRow.innerHTML = `
+      <button class="editBtn rounded-lg border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-800">
+        再編集
+      </button>
       <button class="splitBtn rounded-lg border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-800">
         再分割+再翻訳
       </button>
@@ -135,6 +138,13 @@ function applyInitialParagraphFromQuery() {
 
     card.appendChild(head);
     card.appendChild(body);
+
+    body.querySelector(".editBtn").addEventListener("click", (event) => {
+      //パラグラフ編集ボタンのクリックイベント
+      event.stopPropagation();
+      window.location.href =
+        `/docs/${state.docId}/setup?edit_paragraph_id=${paragraph.id}`;
+    });
 
     body.querySelector(".splitBtn").addEventListener("click", async (event) => {
       event.stopPropagation();

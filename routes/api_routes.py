@@ -356,3 +356,151 @@ def create_sentence_figure_ref(sentence_id: int):
         (sentence_id, figure_id, ref_label, ref_text, order_index),
     )
     return jsonify({"ok": True, "id": ref_id})
+
+@api_bp.get("/paragraphs/<int:paragraph_id>") #パラグラフ編集時にパラグラフの行を取得する関数
+def get_paragraph_detail(paragraph_id: int):
+    paragraph = db.fetch_one(
+        """
+        SELECT *
+        FROM paragraphs
+        WHERE id = ?
+        """,
+        (paragraph_id,),
+    )
+    if not paragraph:
+        abort(404, "paragraph not found")
+
+    heading_rows = db.fetch_all(
+        """
+        SELECT id
+        FROM lines
+        WHERE usage_type = 'paragraph_heading'
+          AND usage_ref_id = ?
+        ORDER BY page_no, line_no, id
+        """,
+        (paragraph_id,),
+    )
+
+    body_rows = db.fetch_all(
+        """
+        SELECT id
+        FROM lines
+        WHERE usage_type = 'paragraph_body'
+          AND usage_ref_id = ?
+        ORDER BY page_no, line_no, id
+        """,
+        (paragraph_id,),
+    )
+
+    return jsonify({
+        "paragraph": dict(paragraph),
+        "heading_line_ids": [int(row["id"]) for row in heading_rows],
+        "body_line_ids": [int(row["id"]) for row in body_rows],
+    })
+
+def _clear_lines_usage_for_paragraph(paragraph_id: int):
+    db.execute(
+        """
+        UPDATE lines
+        SET usage_type = NULL,
+            usage_ref_id = NULL
+        WHERE usage_ref_id = ?
+          AND usage_type IN ('paragraph_heading', 'paragraph_body')
+        """,
+        (paragraph_id,),
+    )
+
+
+@api_bp.put("/paragraphs/<int:paragraph_id>")
+def update_paragraph(paragraph_id: int):
+    payload = request.get_json(force=True)
+
+    paragraph = db.fetch_one(
+        "SELECT * FROM paragraphs WHERE id = ?",
+        (paragraph_id,),
+    )
+    if not paragraph:
+        abort(404, "paragraph not found")
+
+    selected_line_ids = [int(x) for x in (payload.get("selected_line_ids") or [])]
+    heading_line_ids = [int(x) for x in (payload.get("heading_line_ids") or [])]
+    if not selected_line_ids:
+        abort(400, "selected_line_ids is required")
+
+    order_index = int(payload["order_index"])
+    unit_type = (payload.get("unit_type") or "body").strip() or "body"
+
+    placeholders = ",".join(["?"] * len(selected_line_ids))
+    body_lines = db.fetch_all(
+        f"""
+        SELECT *
+        FROM lines
+        WHERE doc_id = ?
+          AND id IN ({placeholders})
+        ORDER BY page_no, line_no, id
+        """,
+        (paragraph["doc_id"], *selected_line_ids),
+    )
+    if len(body_lines) != len(selected_line_ids):
+        abort(400, "some selected_line_ids are invalid")
+
+    heading_lines = []
+    if heading_line_ids:
+        heading_placeholders = ",".join(["?"] * len(heading_line_ids))
+        heading_lines = db.fetch_all(
+            f"""
+            SELECT *
+            FROM lines
+            WHERE doc_id = ?
+              AND id IN ({heading_placeholders})
+            ORDER BY page_no, line_no, id
+            """,
+            (paragraph["doc_id"], *heading_line_ids),
+        )
+        if len(heading_lines) != len(heading_line_ids):
+            abort(400, "some heading_line_ids are invalid")
+
+    start_page_no = int(body_lines[0]["page_no"])
+    end_page_no = int(body_lines[-1]["page_no"])
+    start_line_id = int(body_lines[0]["id"])
+    end_line_id = int(body_lines[-1]["id"])
+    heading_text = build_paragraph_text(heading_lines).strip()
+    raw_text = build_paragraph_text(body_lines)
+    normalized_text = normalize_paragraph_text(raw_text)
+
+    _clear_lines_usage_for_paragraph(paragraph_id)
+
+    db.execute(
+        """
+        UPDATE paragraphs
+        SET order_index = ?,
+            unit_type = ?,
+            start_page_no = ?,
+            end_page_no = ?,
+            start_line_id = ?,
+            end_line_id = ?,
+            heading_text = ?,
+            raw_text = ?,
+            normalized_text = ?
+        WHERE id = ?
+        """,
+        (
+            order_index,
+            unit_type,
+            start_page_no,
+            end_page_no,
+            start_line_id,
+            end_line_id,
+            heading_text,
+            raw_text,
+            normalized_text,
+            paragraph_id,
+        ),
+    )
+
+    _set_lines_usage(heading_line_ids, "paragraph_heading", paragraph_id)
+    _set_lines_usage(selected_line_ids, "paragraph_body", paragraph_id)
+
+    db.execute("DELETE FROM sentences WHERE paragraph_id = ?", (paragraph_id,))
+
+    return jsonify({"ok": True, "paragraph_id": paragraph_id})

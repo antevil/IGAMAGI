@@ -23,6 +23,7 @@ import {
 } from "./render.js";
 import {
   loadAllPages,
+  loadParagraphForEditData,
   saveFigure,
   saveParagraph,
   saveTitle,
@@ -473,6 +474,29 @@ function scrollToCurrentPage() {
     block: "start",
   });
 }
+async function loadParagraphForEdit() {
+  if (!state.editParagraphId) return;
+
+  const result = await loadParagraphForEditData(state.editParagraphId);
+
+  setSelectedIdArray("heading", result.heading_line_ids || []);
+  setSelectedIdArray("body", result.body_line_ids || []);
+
+  if (els.orderIndex) {
+    els.orderIndex.value = String(result.paragraph.order_index ?? 1);
+  }
+  if (els.unitType) {
+    els.unitType.value = result.paragraph.unit_type || "body";
+  }
+
+  const firstBodyId = (result.body_line_ids || [])[0];
+  if (firstBodyId != null) {
+    const firstLine = state.lineIndex.get(Number(firstBodyId));
+    if (firstLine) {
+      state.pageNo = Number(firstLine.page_no);
+    }
+  }
+}
 
 async function init() {
   if (!state.docId) return;
@@ -486,6 +510,11 @@ async function init() {
     state.pageNo = Number(pageParam);
   }
 
+  const editParagraphParam = getQueryParam("edit_paragraph_id");
+    if (editParagraphParam !== null) {
+      state.editParagraphId = Number(editParagraphParam);
+    }
+
   bindEvents();
 
   switchHeaderTab("paragraph");
@@ -494,13 +523,18 @@ async function init() {
   updateFigureTexts();
 
   await loadAllPages();
-  await syncNextOrderIndex(); // 最新の order_index を取得しておく
+
+  if (state.editParagraphId) {
+    await loadParagraphForEdit();// 編集対象のパラグラフがある場合はそれをロード
+  } else {
+    await syncNextOrderIndex();// 最新の order_index を取得しておく
+  }
   bindPageOverlayEvents();
 
   if (els.pageSelect) {
     els.pageSelect.value = String(state.pageNo || 0);
   }
-
+  refreshSelectionView();
   scrollToCurrentPage();
 }
 

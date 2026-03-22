@@ -17,7 +17,6 @@ import { clearSelectionState } from "./selection.js";
 import { fetchJSON, showToast, syncOverlaySize } from "./utils.js";
 
 async function loadSinglePage(pageNo) {
-  //ここって削除してよい？
   const page = state.pageDomByNo.get(Number(pageNo));
   if (!page) return;
 
@@ -92,6 +91,7 @@ export async function syncNextOrderIndex() {
 
 export async function saveParagraph(options = {}) {
   const { openViewer = false } = options;
+
   const bodyLines = getSelectedLines("body");
   if (!bodyLines.length) {
     showToast("Body行を選択してください", true);
@@ -99,24 +99,30 @@ export async function saveParagraph(options = {}) {
   }
 
   const headingLines = getSelectedLines("heading");
-  const bodyRange = getRepresentativeRangeIds("body"); //不明の関数。パラグラフのlineのリストなのかな？
+  const bodyRange = getRepresentativeRangeIds("body");
 
   const payload = {
-    start_line_id: bodyRange.start_line_id, //この辺も消していきたいな。
+    start_line_id: bodyRange.start_line_id,
     end_line_id: bodyRange.end_line_id,
-    selected_line_ids: bodyLines.map((line) => Number(line.id)), //ここはintに修正するのはバックエンドでやるからなくしてもいいのでは？
+    selected_line_ids: bodyLines.map((line) => Number(line.id)),
     heading_line_ids: headingLines.map((line) => Number(line.id)),
     order_index: Number(els.orderIndex.value || 0),
     unit_type: els.unitType.value,
   };
 
-  const result = await fetchJSON(`/api/docs/${state.docId}/paragraphs`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  const isEdit = Number.isFinite(state.editParagraphId) && state.editParagraphId > 0;
+
+  const result = isEdit
+    ? await fetchJSON(`/api/paragraphs/${state.editParagraphId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+    : await fetchJSON(`/api/docs/${state.docId}/paragraphs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
   await fetchJSON(`/api/paragraphs/${result.paragraph_id}/split_sentences`, {
     method: "POST",
@@ -124,46 +130,34 @@ export async function saveParagraph(options = {}) {
 
   const translateResult = await fetchJSON(
     `/api/paragraphs/${result.paragraph_id}/translate`,
-    {
-      method: "POST",
-    }
+    { method: "POST" }
   );
 
-  if (els.unitType.value === "title") {
-    const titleText = buildTextFromLines(bodyLines);
-    if (titleText) {
-      els.titleInput.value = titleText;
-
-      await fetchJSON(`/api/docs/${state.docId}/title`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          title: titleText,
-        }),
-      });
-    }
-  }
-
-  if (!translateResult.deepl_enabled) {
-    showToast("保存しました。DeepLキー未設定のため翻訳は空です");
-  } else {
-    showToast("保存・文分割・翻訳まで完了しました");
-  }
-
-  await syncNextOrderIndex();
+  showToast(
+    !translateResult.deepl_enabled
+      ? (isEdit
+          ? "段落を更新しました。DeepLキー未設定のため翻訳は空です"
+          : "保存しました。DeepLキー未設定のため翻訳は空です")
+      : (isEdit
+          ? "段落を更新して再翻訳しました"
+          : "保存・文分割・翻訳まで完了しました")
+  );
 
   clearSelectionState();
   refreshSelectionView();
 
-  if (openViewer) {
-    const url = `/docs/${state.docId}/reader?paragraph_id=${result.paragraph_id}`;
-    window.location.href = url;
+  if (!isEdit) {
+    await syncNextOrderIndex();
   }
 
+  if (openViewer) {
+    window.location.href =
+      `/docs/${state.docId}/reader?paragraph_id=${result.paragraph_id}`;
+  }
 }
-
+export async function loadParagraphForEditData(paragraphId) {
+  return await fetchJSON(`/api/paragraphs/${paragraphId}`);
+}
 export async function saveFigure() {
   if (!state.imageBBox) {
     showToast("図本体のbboxを選択してください", true);
