@@ -475,7 +475,7 @@ def update_paragraph(paragraph_id: int):
         UPDATE paragraphs
         SET order_index = ?,
             unit_type = ?,
-            start_page_no = ?,
+            page_no = ?,
             end_page_no = ?,
             start_line_id = ?,
             end_line_id = ?,
