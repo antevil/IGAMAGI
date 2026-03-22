@@ -272,10 +272,25 @@ function handleLinePointerUp(event) {
 function bindPageOverlayEvents() {
   if (!els.pdfStack) return;
 
-  els.pdfStack.addEventListener("pointerdown", handleLinePointerDown);
-  els.pdfStack.addEventListener("pointermove", handleLinePointerMove);
-  els.pdfStack.addEventListener("pointerup", handleLinePointerUp);
-  els.pdfStack.addEventListener("pointercancel", handleLinePointerUp);
+  els.pdfStack.addEventListener("pointerdown", (event) => {
+    if (!event.target.closest(".pdf-overlay")) return;
+    handleLinePointerDown(event);
+  });
+
+  els.pdfStack.addEventListener("pointermove", (event) => {
+    if (!state.lineDrag.active) return;
+    handleLinePointerMove(event);
+  });
+
+  els.pdfStack.addEventListener("pointerup", (event) => {
+    if (!state.lineDrag.active) return;
+    handleLinePointerUp(event);
+  });
+
+  els.pdfStack.addEventListener("pointercancel", (event) => {
+    if (!state.lineDrag.active) return;
+    handleLinePointerUp(event);
+  });
 
   els.pdfStack.addEventListener("dragstart", (event) => {
     if (event.target.closest(".pdf-overlay")) {
@@ -301,7 +316,6 @@ function bindPageOverlayEvents() {
     renderFigureBoxes();
   });
 }
-
 function setupPageObserver() {
   state.pageObserver?.disconnect();
 
