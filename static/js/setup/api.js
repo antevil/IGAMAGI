@@ -166,7 +166,7 @@ export async function reloadLoadedPages() {
     )
   );
 
-  refreshSelectionView();
+  refreshSelectionView(targets);
   renderFigureBoxes();
   updateFigureTexts();
 }

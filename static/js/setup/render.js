@@ -273,7 +273,14 @@ function paragraphCard(paragraph) {
   return card;
 }
 
-export function refreshSelectionView() {
+export function refreshSelectionView(pageNos = null) {
   updateSelectionUI();
-  renderAllLines();
+
+  const targets = Array.isArray(pageNos) && pageNos.length
+    ? pageNos
+    : [...state.loadedPageNos];
+
+  for (const pageNo of targets) {
+    renderLinesForPage(pageNo);
+  }
 }
