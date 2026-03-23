@@ -26,6 +26,7 @@ import {
   ensureNearbyPages,
   loadInitialPages,
   loadParagraphForEditData,
+  loadFigureForEditData,
   reloadLoadedPages,
   saveFigure,
   saveParagraph,
@@ -277,6 +278,37 @@ function getEditParagraphId() {
   const id = Number(raw);
   return Number.isFinite(id) && id > 0 ? id : null;
 }
+function getEditFigureId() {
+  const raw = getQueryParam("edit_figure_id");
+  if (raw == null) return null;
+
+  const id = Number(raw);
+  return Number.isFinite(id) && id > 0 ? id : null;
+}
+
+async function restoreFigureForEdit(figureId) {
+  const result = await loadFigureForEditData(figureId);
+
+  state.editFigureId = Number(figureId);
+
+  const figure = result.figure || result;
+  const captionIds = Array.isArray(result.caption_line_ids)
+    ? result.caption_line_ids.map((id) => Number(id))
+    : [];
+
+  state.figurePageNo = Number(figure.page_no);
+  state.pageNo = Number(figure.page_no);
+  state.figureCaptionSelectedLineIds = captionIds;
+  state.imageBBox = figure.image_bbox
+    ? JSON.parse(figure.image_bbox)
+    : null;
+
+  if (els.figNoInput) {
+    els.figNoInput.value = figure.fig_no || "FIG";
+  }
+
+  switchHeaderTab("figure");
+}
 
 async function restoreParagraphForEdit(paragraphId) {
   const result = await loadParagraphForEditData(paragraphId);
@@ -492,9 +524,10 @@ function bindEvents() {
   });
 
   els.clearFigureSelectionBtn?.addEventListener("click", clearFigure);
-
   els.saveFigureBtn?.addEventListener("click", () => {
-    saveFigure().catch((err) => showToast(err.message, true));
+    saveFigure({ openViewer: true }).catch((err) =>
+      showToast(err.message, true)
+    );
   });
 
   els.pageSelect?.addEventListener("change", () => {
@@ -567,17 +600,21 @@ async function init() {
   if (pageParam !== null) {
     state.pageNo = Number(pageParam);
   }
-  const editParagraphId = getEditParagraphId();
+    const editParagraphId = getEditParagraphId();
+  const editFigureId = getEditFigureId();
 
   bindEvents();
+
   switchHeaderTab("paragraph");
 
   createPageStack();
+
   bindPageOverlayEvents();
-  
 
   if (editParagraphId) {
     await restoreParagraphForEdit(editParagraphId);
+  } else if (editFigureId) {
+    await restoreFigureForEdit(editFigureId);
   } else {
     await syncNextOrderIndex();
   }

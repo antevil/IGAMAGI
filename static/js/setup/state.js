@@ -49,6 +49,7 @@ export const state = {
   zoomStep: 0.1,
 
   editParagraphId: null,
+  editFigureId: null,
   mode: "line",
 };
 

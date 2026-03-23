@@ -7,9 +7,11 @@
     paragraphCache: [],
     figureCache: [],
     openParagraphId: null,
+    openFigureId: null,
   };
 
   const $ = (id) => document.getElementById(id);
+
   const els = {
     paragraphList: $("paragraphList"),
     loadParagraphsBtn: $("loadParagraphsBtn"),
@@ -45,23 +47,29 @@
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;")
       .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
+      .replaceAll("'", "&#39;");
   }
 
   function getQueryParam(name) {
-  const url = new URL(window.location.href);
-  return url.searchParams.get(name);
-}
+    const url = new URL(window.location.href);
+    return url.searchParams.get(name);
+  }
 
-function applyInitialParagraphFromQuery() {
-  const paragraphId = getQueryParam("paragraph_id");
-  if (!paragraphId) return;
+  function applyInitialParagraphFromQuery() {
+    const paragraphId = getQueryParam("paragraph_id");
+    if (!paragraphId) return;
+    const id = Number(paragraphId);
+    if (!Number.isFinite(id)) return;
+    state.openParagraphId = id;
+  }
 
-  const id = Number(paragraphId);
-  if (!Number.isFinite(id)) return;
-
-  state.openParagraphId = id;
-}
+  function applyInitialFigureFromQuery() {
+    const figureId = getQueryParam("figure_id");
+    if (!figureId) return;
+    const id = Number(figureId);
+    if (!Number.isFinite(id)) return;
+    state.openFigureId = id;
+  }
 
   function paragraphCard(paragraph) {
     const isOpen = state.openParagraphId === paragraph.id;
@@ -69,37 +77,35 @@ function applyInitialParagraphFromQuery() {
     const card = document.createElement("div");
     card.dataset.paragraphId = String(paragraph.id);
     card.className = isOpen
-    ? "rounded-xl border border-zinc-700 bg-zinc-900/80"
-    : "rounded-xl border border-zinc-800 bg-zinc-950/70";
+      ? "rounded-xl border border-zinc-700 bg-zinc-900/80"
+      : "rounded-xl border border-zinc-800 bg-zinc-950/70";
 
     const head = document.createElement("button");
     head.type = "button";
     head.className =
-    "w-full p-4 text-left flex items-start justify-between gap-3 hover:bg-zinc-900/60";
+      "w-full p-4 text-left flex items-start justify-between gap-3 hover:bg-zinc-900/60";
     head.innerHTML = `
-      <div class="space-y-1">
-        <div class="font-semibold text-zinc-100">
+      <div class="min-w-0">
+        <div class="font-medium text-zinc-100">
           #${paragraph.order_index} ${escapeHtml(paragraph.heading_text || "(no heading)")}
         </div>
-        <div class="text-xs text-zinc-400">
+        <div class="mt-1 text-xs text-zinc-400">
           ${escapeHtml(paragraph.unit_type)} / p.${paragraph.page_no + 1} - ${paragraph.end_page_no + 1}
         </div>
       </div>
-      <div class="shrink-0 text-zinc-400">
-        ${isOpen ? "▲" : "▼"}
-      </div>
+      <div class="shrink-0 text-zinc-400">${isOpen ? "▲" : "▼"}</div>
     `;
 
     const body = document.createElement("div");
     body.className = `px-4 pb-4 space-y-3 ${isOpen ? "" : "hidden"}`;
 
     const actionRow = document.createElement("div");
-    actionRow.className = "flex justify-end";
+    actionRow.className = "flex justify-end gap-2";
     actionRow.innerHTML = `
-      <button class="editBtn rounded-lg border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-800">
+      <button class="editBtn rounded-lg border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-900/70">
         再編集
       </button>
-      <button class="splitBtn rounded-lg border border-zinc-700 px-3 py-1 text-sm hover:bg-zinc-800">
+      <button class="splitBtn rounded-lg border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-900/70">
         再分割+再翻訳
       </button>
     `;
@@ -107,14 +113,11 @@ function applyInitialParagraphFromQuery() {
 
     for (const sentence of paragraph.sentences || []) {
       const block = document.createElement("div");
-      block.className = "rounded-lg border border-zinc-800 bg-zinc-900/70 p-3 space-y-2";
+      block.className =
+        "rounded-lg border border-zinc-800 bg-zinc-900/70 p-3 space-y-2";
       block.innerHTML = `
-        <div class="text-sm text-zinc-100 whitespace-pre-wrap">
-          ${escapeHtml(sentence.source_text)}
-        </div>
-        <div class="text-sm text-sky-200 whitespace-pre-wrap">
-          ${escapeHtml(sentence.translated_text || "")}
-        </div>
+        <div class="text-sm text-zinc-100">${escapeHtml(sentence.source_text)}</div>
+        <div class="text-sm text-zinc-300">${escapeHtml(sentence.translated_text || "")}</div>
       `;
       body.appendChild(block);
     }
@@ -127,11 +130,8 @@ function applyInitialParagraphFromQuery() {
     }
 
     head.addEventListener("click", () => {
-      if (state.openParagraphId === paragraph.id) {
-        state.openParagraphId = null;
-      } else {
-        state.openParagraphId = paragraph.id;
-      }
+      state.openParagraphId =
+        state.openParagraphId === paragraph.id ? null : paragraph.id;
       renderParagraphList();
       scrollToOpenParagraph();
     });
@@ -140,22 +140,18 @@ function applyInitialParagraphFromQuery() {
     card.appendChild(body);
 
     body.querySelector(".editBtn").addEventListener("click", (event) => {
-      //パラグラフ編集ボタンのクリックイベント
-       event.stopPropagation();
-  window.location.href =
-    `/docs/${state.docId}/setup?page=${paragraph.page_no}&edit_paragraph_id=${paragraph.id}`;
-});
+      event.stopPropagation();
+      window.location.href = `/docs/${state.docId}/setup?page=${paragraph.page_no}&edit_paragraph_id=${paragraph.id}`;
+    });
 
     body.querySelector(".splitBtn").addEventListener("click", async (event) => {
       event.stopPropagation();
-
       await fetchJSON(`/api/paragraphs/${paragraph.id}/split_sentences`, {
         method: "POST",
       });
       await fetchJSON(`/api/paragraphs/${paragraph.id}/translate`, {
         method: "POST",
       });
-
       await loadParagraphs();
       state.openParagraphId = paragraph.id;
       renderParagraphList();
@@ -174,11 +170,9 @@ function applyInitialParagraphFromQuery() {
     btn.className =
       "h-12 w-12 rounded-full border border-dashed border-zinc-600 text-2xl text-zinc-300 hover:bg-zinc-900/70";
     btn.textContent = "＋";
-
     btn.addEventListener("click", () => {
       const last = state.paragraphCache.at(-1);
       const page = last ? last.end_page_no : 0;
-
       window.location.href = `/docs/${state.docId}/setup?page=${page}`;
     });
 
@@ -189,7 +183,6 @@ function applyInitialParagraphFromQuery() {
   function renderParagraphList() {
     if (!els.paragraphList) return;
     els.paragraphList.innerHTML = "";
-
     for (const p of state.paragraphCache) {
       els.paragraphList.appendChild(paragraphCard(p));
     }
@@ -200,6 +193,7 @@ function applyInitialParagraphFromQuery() {
     state.paragraphCache = await fetchJSON(`/api/docs/${state.docId}/paragraphs`);
     renderParagraphList();
   }
+
   function scrollToOpenParagraph() {
     if (!els.paragraphList) return;
     if (state.openParagraphId == null) return;
@@ -210,50 +204,107 @@ function applyInitialParagraphFromQuery() {
     if (!card) return;
 
     requestAnimationFrame(() => {
-      card.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
+      card.scrollIntoView({ behavior: "smooth", block: "start" });
     });
-}
+  }
+
   function figureCard(figure) {
+    const isOpen = state.openFigureId === figure.id;
+
     const card = document.createElement("div");
-    card.className = "rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3";
+    card.dataset.figureId = String(figure.id);
+    card.className = isOpen
+      ? "rounded-xl border border-zinc-700 bg-zinc-900/80 p-4 space-y-3"
+      : "rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3";
+
     const imgSrc = figure.image_path || "";
 
     card.innerHTML = `
-      <div>
-        <div class="font-medium">${escapeHtml(figure.fig_no)}</div>
-        <div class="text-xs text-zinc-400">page ${figure.page_no + 1}</div>
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <div class="font-medium text-zinc-100">${escapeHtml(figure.fig_no || "FIG")}</div>
+          <div class="mt-1 text-xs text-zinc-400">page ${Number(figure.page_no) + 1}</div>
+        </div>
+        <button class="editFigureBtn rounded-lg border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-900/70">
+          編集
+        </button>
       </div>
-      ${imgSrc ? `<img src="${imgSrc}" alt="${escapeHtml(figure.fig_no)}" class="w-full rounded-lg border border-zinc-800 bg-white">` : ""}
-      <div class="text-sm leading-6 text-zinc-300 whitespace-pre-wrap">${escapeHtml(figure.caption_text || "")}</div>
+
+      ${imgSrc ? `<img src="${escapeHtml(imgSrc)}" class="w-full rounded-lg border border-zinc-800" alt="${escapeHtml(figure.fig_no || "figure")}">` : ""}
+
+      <div class="text-sm text-zinc-300 whitespace-pre-wrap">${escapeHtml(figure.caption_text || "")}</div>
     `;
+
+    card.querySelector(".editFigureBtn").addEventListener("click", () => {
+      window.location.href = `/docs/${state.docId}/setup?page=${figure.page_no}&edit_figure_id=${figure.id}`;
+    });
+
     return card;
   }
 
-  async function loadFigures() {
-    state.figureCache = await fetchJSON(`/api/docs/${state.docId}/figures`);
+  function addFigureCard() {
+    const wrap = document.createElement("div");
+    wrap.className = "flex justify-center py-2";
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className =
+      "h-12 w-12 rounded-full border border-dashed border-zinc-600 text-2xl text-zinc-300 hover:bg-zinc-900/70";
+    btn.textContent = "＋";
+    btn.addEventListener("click", () => {
+      const last = state.figureCache.at(-1);
+      const page = last ? last.page_no : 0;
+      window.location.href = `/docs/${state.docId}/setup?page=${page}&edit_figure_id=`;
+    });
+
+    wrap.appendChild(btn);
+    return wrap;
+  }
+
+  function renderFigureList() {
     if (!els.figureList) return;
     els.figureList.innerHTML = "";
     for (const fig of state.figureCache) {
       els.figureList.appendChild(figureCard(fig));
     }
+    els.figureList.appendChild(addFigureCard());
+  }
+
+  async function loadFigures() {
+    state.figureCache = await fetchJSON(`/api/docs/${state.docId}/figures`);
+    renderFigureList();
+  }
+
+  function scrollToOpenFigure() {
+    if (!els.figureList) return;
+    if (state.openFigureId == null) return;
+
+    const card = els.figureList.querySelector(
+      `[data-figure-id="${state.openFigureId}"]`
+    );
+    if (!card) return;
+
+    requestAnimationFrame(() => {
+      card.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 
   function bindEvents() {
     els.loadParagraphsBtn?.addEventListener("click", loadParagraphs);
     els.loadFiguresBtn?.addEventListener("click", loadFigures);
   }
-  
 
   async function init() {
-  bindEvents();
-  applyInitialParagraphFromQuery();
-  await loadParagraphs();
-  scrollToOpenParagraph();
-  await loadFigures();
-}
+    bindEvents();
+    applyInitialParagraphFromQuery();
+    applyInitialFigureFromQuery();
+
+    await loadParagraphs();
+    scrollToOpenParagraph();
+
+    await loadFigures();
+    scrollToOpenFigure();
+  }
 
   init().catch((err) => {
     console.error(err);

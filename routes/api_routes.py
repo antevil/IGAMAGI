@@ -339,6 +339,131 @@ def list_figures(doc_id: int):
     figures = db.fetch_all("SELECT * FROM figures WHERE doc_id = ? ORDER BY page_no, id", (doc_id,))
     return jsonify(figures)
 
+@api_bp.get("/figures/<int:figure_id>")
+def get_figure_detail(figure_id: int):
+    figure = db.fetch_one(
+        """
+        SELECT *
+        FROM figures
+        WHERE id = ?
+        """,
+        (figure_id,),
+    )
+
+    if not figure:
+        abort(404, "figure not found")
+
+    caption_rows = db.fetch_all(
+        """
+        SELECT id
+        FROM lines
+        WHERE usage_type = 'figure_caption'
+          AND usage_ref_id = ?
+        ORDER BY page_no, line_no, id
+        """,
+        (figure_id,),
+    )
+
+    return jsonify({
+        "figure": dict(figure),
+        "caption_line_ids": [int(row["id"]) for row in caption_rows],
+    })
+
+
+def _clear_lines_usage_for_figure(figure_id: int):
+    db.execute(
+        """
+        UPDATE lines
+        SET usage_type = NULL,
+            usage_ref_id = NULL
+        WHERE usage_ref_id = ?
+          AND usage_type = 'figure_caption'
+        """,
+        (figure_id,),
+    )
+
+
+@api_bp.put("/figures/<int:figure_id>")
+def update_figure(figure_id: int):
+    payload = request.get_json(force=True)
+
+    figure = db.fetch_one(
+        "SELECT * FROM figures WHERE id = ?",
+        (figure_id,),
+    )
+    if not figure:
+        abort(404, "figure not found")
+
+    fig_no = str(payload.get("fig_no") or "").strip() or "FIG"
+    page_no = int(payload["page_no"])
+    image_bbox_payload = payload.get("image_bbox") or {}
+    caption_line_ids = [int(x) for x in (payload.get("caption_line_ids") or [])]
+
+    if not caption_line_ids:
+        abort(400, "caption_line_ids is required")
+
+    image_bbox = bbox_json(
+        float(image_bbox_payload["x0"]),
+        float(image_bbox_payload["y0"]),
+        float(image_bbox_payload["x1"]),
+        float(image_bbox_payload["y1"]),
+    )
+
+    placeholders = ",".join(["?"] * len(caption_line_ids))
+    caption_lines = db.fetch_all(
+        f"""
+        SELECT *
+        FROM lines
+        WHERE doc_id = ?
+          AND id IN ({placeholders})
+        ORDER BY page_no, line_no
+        """,
+        (figure["doc_id"], *caption_line_ids),
+    )
+
+    if len(caption_lines) != len(caption_line_ids):
+        abort(400, "some caption_line_ids are invalid")
+
+    caption_text = build_paragraph_text(caption_lines).strip() or None
+
+    _clear_lines_usage_for_figure(figure_id)
+
+    db.execute(
+        """
+        UPDATE figures
+        SET fig_no = ?,
+            page_no = ?,
+            image_bbox = ?,
+            caption_text = ?
+        WHERE id = ?
+        """,
+        (
+            fig_no,
+            page_no,
+            image_bbox,
+            caption_text,
+            figure_id,
+        ),
+    )
+
+    _set_lines_usage(caption_line_ids, "figure_caption", figure_id)
+
+    doc = db.fetch_one("SELECT * FROM documents WHERE id = ?", (figure["doc_id"],))
+    image_path = save_figure_crop(
+        figure["doc_id"],
+        figure_id,
+        doc["pdf_path"],
+        page_no,
+        image_bbox,
+    )
+
+    db.execute(
+        "UPDATE figures SET image_path = ? WHERE id = ?",
+        (image_path, figure_id),
+    )
+
+    return jsonify({"ok": True, "figure_id": figure_id, "image_path": image_path})
+
 
 @api_bp.post("/sentences/<int:sentence_id>/figure_refs")
 def create_sentence_figure_ref(sentence_id: int):

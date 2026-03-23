@@ -276,7 +276,13 @@ export async function loadParagraphForEditData(paragraphId) {
   return await fetchJSON(`/api/paragraphs/${paragraphId}`);
 }
 
-export async function saveFigure() {
+export async function loadFigureForEditData(figureId) {
+  return await fetchJSON(`/api/figures/${figureId}`);
+}
+
+export async function saveFigure(options = {}) {
+  const { openViewer = false } = options;
+
   if (!state.imageBBox) {
     showToast("図本体のbboxを選択してください", true);
     return;
@@ -303,19 +309,42 @@ export async function saveFigure() {
     caption_line_ids: state.figureCaptionSelectedLineIds,
   };
 
-  await fetchJSON(`/api/docs/${state.docId}/figures`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  const isEdit =
+    Number.isFinite(state.editFigureId) && state.editFigureId > 0;
 
-  showToast("Figureを保存しました");
+  const result = isEdit
+    ? await fetchJSON(`/api/figures/${state.editFigureId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      })
+    : await fetchJSON(`/api/docs/${state.docId}/figures`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+  showToast(isEdit ? "Figureを更新しました" : "Figureを保存しました");
 
   clearFigureSelection();
   state.figureCaptionSelectedLineIds = [];
+
+  if (!isEdit) {
+    state.editFigureId = null;
+    if (els.figNoInput) {
+      els.figNoInput.value = "FIG";
+    }
+  }
+
   updateFigureTexts();
   renderFigureBoxes();
   refreshSelectionView();
+
+  if (openViewer) {
+    window.location.href = `/docs/${state.docId}/reader?figure_id=${result.figure_id}`;
+  }
 }
