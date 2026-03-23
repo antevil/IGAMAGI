@@ -254,7 +254,10 @@
     btn.addEventListener("click", () => {
       const last = state.figureCache.at(-1);
       const page = last ? last.page_no : 0;
-      window.location.href = `/docs/${state.docId}/setup?page=${page}&edit_figure_id=`;
+      const nextFigNo = String(state.figureCache.length + 1);
+
+      window.location.href =
+        `/docs/${state.docId}/setup?page=${page}&mode=figure&next_fig_no=${encodeURIComponent(nextFigNo)}`;
     });
 
     wrap.appendChild(btn);

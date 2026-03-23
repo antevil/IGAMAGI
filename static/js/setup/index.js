@@ -286,6 +286,17 @@ function getEditFigureId() {
   return Number.isFinite(id) && id > 0 ? id : null;
 }
 
+function getModeParam() {
+  return getQueryParam("mode");
+}
+
+function getNextFigureNo() {
+  const raw = getQueryParam("next_fig_no");
+  if (raw == null) return null;
+  const value = String(raw).trim();
+  return value || null;
+}
+
 async function restoreFigureForEdit(figureId) {
   const result = await loadFigureForEditData(figureId);
 
@@ -600,12 +611,18 @@ async function init() {
   if (pageParam !== null) {
     state.pageNo = Number(pageParam);
   }
-    const editParagraphId = getEditParagraphId();
+  const editParagraphId = getEditParagraphId();
   const editFigureId = getEditFigureId();
+  const mode = getModeParam();
+  const nextFigureNo = getNextFigureNo();
 
   bindEvents();
 
-  switchHeaderTab("paragraph");
+  if (mode === "figure") {
+    switchHeaderTab("figure");
+  } else {
+    switchHeaderTab("paragraph");
+  }
 
   createPageStack();
 
@@ -617,6 +634,14 @@ async function init() {
     await restoreFigureForEdit(editFigureId);
   } else {
     await syncNextOrderIndex();
+
+    if (mode === "figure") {
+      switchHeaderTab("figure");
+    }
+
+    if (mode === "figure" && nextFigureNo && els.figNoInput) {
+      els.figNoInput.value = nextFigureNo;
+    }
   }
  // 1回目: 仮の block へ飛んで lazy 開始条件を作る
   await jumpToPage(state.pageNo, "auto");
