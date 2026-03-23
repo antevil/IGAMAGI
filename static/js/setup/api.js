@@ -55,9 +55,12 @@ function resetLoadedPageState() {
 
 async function loadPageImage(pageNo, { force = false, cacheBust = false } = {}) {
   const page = ensurePageShell(pageNo);
-  if (!page?.img) return;
+  if (!page?.img) {
+    return;
+  }
 
   const nextSrc = buildPreviewUrl(pageNo, { cacheBust });
+
   if (
     !force &&
     page.img.dataset.loaded === "1" &&
@@ -72,7 +75,11 @@ async function loadPageImage(pageNo, { force = false, cacheBust = false } = {}) 
       page.img.dataset.src = nextSrc;
       resolve();
     };
-    page.img.onerror = reject;
+
+    page.img.onerror = (event) => {
+      reject(new Error(`image load failed: page ${pageNo}`));
+    };
+
     page.img.src = nextSrc;
   });
 }
@@ -108,11 +115,9 @@ export async function loadSinglePage(
     ensurePageShell(normalizedPageNo);
 
     await loadPageImage(normalizedPageNo, { force, cacheBust });
-
     const payload = await fetchJSON(
       `/api/docs/${state.docId}/pages/${normalizedPageNo}/lines`
     );
-
     state.pageNaturalSizeByPage.set(normalizedPageNo, {
       width: payload.page_width || 1,
       height: payload.page_height || 1,
@@ -146,7 +151,6 @@ export async function loadSinglePage(
 export async function ensureNearbyPages(pageNo, options = {}) {
   const { force = false, cacheBust = false } = options;
   const targets = getNearbyPageNos(pageNo);
-
   await Promise.all(
     targets.map((targetPageNo) =>
       loadSinglePage(targetPageNo, { force, cacheBust })

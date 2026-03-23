@@ -448,15 +448,16 @@ function isTypingTarget(target) {
 }
 
 async function jumpToPage(pageNo, behavior = "smooth") {
+
   state.pageNo = Number(pageNo);
 
   if (els.pageSelect) {
     els.pageSelect.value = String(state.pageNo);
   }
 
-  await ensureNearbyPages(state.pageNo);
 
   const page = state.pageDomByNo.get(state.pageNo);
+
   page?.block?.scrollIntoView({
     behavior,
     block: "start",
@@ -573,20 +574,26 @@ async function init() {
 
   createPageStack();
   bindPageOverlayEvents();
-  setupPageObserver();
+  
 
   if (editParagraphId) {
     await restoreParagraphForEdit(editParagraphId);
   } else {
     await syncNextOrderIndex();
   }
+ // 1回目: 仮の block へ飛んで lazy 開始条件を作る
+  await jumpToPage(state.pageNo, "auto");
 
+  // 近傍ページを実ロード
   await loadInitialPages(state.pageNo);
-
+  // 2回目: 画像ロード後の高さ変化を補正して正しい位置へ飛び直す
+  await jumpToPage(state.pageNo, "auto");
   if (els.pageSelect) {
     els.pageSelect.value = String(state.pageNo || 0);
   }
-  await jumpToPage(state.pageNo, "auto");
+
+  setupPageObserver();
+  
   refreshSelectionView();
   updateFigureTexts();
 }
