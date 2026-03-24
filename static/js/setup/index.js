@@ -163,7 +163,11 @@ function handleLinePointerDown(event) {
   state.lineDrag.startedOnLineId = lineBox ? Number(lineBox.dataset.lineId) : null;
   state.lineDrag.pageNo = pageNo;
   state.lineDrag.overlayEl = overlayEl;
-  state.lineDrag.target = event.shiftKey ? "heading" : "body";
+  state.lineDrag.target = state.titleEditMode
+    ? "title"
+    : event.shiftKey
+    ? "heading"
+    : "body";
 }
 
 function handleLinePointerMove(event) {
@@ -226,7 +230,7 @@ function handleLinePointerUp(event) {
         ];
       } else {
         addLinesToSelection(ids, dragTarget);
-        if (dragTarget === "body") {
+        if (!state.titleEditMode && dragTarget === "body") {
           applyAutoHeadingFromBodySelection();
         }
       }
@@ -245,7 +249,7 @@ function handleLinePointerUp(event) {
       }
     } else {
       toggleLineSelection(startedOnLineId, dragTarget);
-      if (dragTarget === "body") {
+      if (!state.titleEditMode && dragTarget === "body") {
         applyAutoHeadingFromBodySelection();
       }
     }
@@ -269,6 +273,22 @@ function handleLinePointerUp(event) {
 
   event.preventDefault();
   event.stopPropagation();
+}
+
+function enterTitleEditMode() {
+  state.titleEditMode = true;
+  state.activeTab = "paragraph";
+  state.mode = "line";
+  applyMode?.();
+  refreshSelectionView?.();
+}
+
+function exitTitleEditMode() {
+  state.titleEditMode = false;
+  state.activeTab = "paragraph";
+  state.mode = "line";
+  applyMode?.();
+  refreshSelectionView?.();
 }
 
 function getEditParagraphId() {
@@ -511,6 +531,9 @@ function bindEvents() {
   els.saveTitleBtn?.addEventListener("click", () => {
     saveTitle().catch((err) => showToast(err.message, true));
   });
+  els.titleCard?.addEventListener("click", () => {
+    enterTitleEditMode();
+  });
 
   els.zoomInBtn?.addEventListener("click", zoomIn);
   els.zoomOutBtn?.addEventListener("click", zoomOut);
@@ -658,6 +681,10 @@ async function init() {
   
   refreshSelectionView();
   updateFigureTexts();
+  const currentTitle = (els.titleInput?.value || "").trim();
+  if (!currentTitle) {
+    enterTitleEditMode();
+  }
 }
 
 init().catch((err) => {

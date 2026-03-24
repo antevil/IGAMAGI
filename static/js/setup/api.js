@@ -180,19 +180,35 @@ export async function reloadLoadedPages() {
 }
 
 export async function saveTitle() {
-  await fetchJSON(`/api/docs/${state.docId}/title`, {
+  if (
+    !Array.isArray(state.titleSelectedLineIds) ||
+    state.titleSelectedLineIds.length === 0
+  ) {
+    showToast("タイトル行を選択してください", true);
+    return;
+  }
+
+  const result = await fetchJSON(`/api/docs/${state.docId}/title`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      title: els.titleInput.value.trim(),
+      line_ids: state.titleSelectedLineIds,
     }),
   });
 
-  showToast("タイトルを保存しました");
-}
+  if (els.titleInput && result.title) {
+    els.titleInput.value = result.title;
+  }
 
+  showToast("タイトルを保存しました");
+
+  state.titleEditMode = false;
+  state.titleSelectedLineIds = [];
+
+  refreshSelectionView();
+}
 export async function syncNextOrderIndex() {
   if (!state.docId || !els.orderIndex) return;
 

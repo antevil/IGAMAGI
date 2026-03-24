@@ -22,14 +22,16 @@ export function getAllLines() {
 }
 
 export function getSelectedIdArray(target) {
-  return target === "heading"
-    ? state.headingSelectedLineIds
-    : state.bodySelectedLineIds;
+  if (target === "title") return state.titleSelectedLineIds;
+  if (target === "heading") return state.headingSelectedLineIds;
+  return state.bodySelectedLineIds;
 }
 
 export function setSelectedIdArray(target, ids) {
   const uniqueIds = [...new Set(ids.map((x) => Number(x)))];
-  if (target === "heading") {
+  if (target === "title") {
+    state.titleSelectedLineIds = uniqueIds;
+  } else if (target === "heading") {
     state.headingSelectedLineIds = uniqueIds;
   } else {
     state.bodySelectedLineIds = uniqueIds;
@@ -71,6 +73,7 @@ export function addLinesToSelection(lineIds, target) {
   setSelectedIdArray(target, [...current, ...lineIds]);
 }
 export function clearSelectionState() {
+  state.titleSelectedLineIds = [];
   state.headingSelectedLineIds = [];
   state.bodySelectedLineIds = [];
 

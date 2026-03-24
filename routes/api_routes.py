@@ -92,10 +92,53 @@ def get_page_preview(doc_id: int, page_no: int):
 @api_bp.post("/docs/<int:doc_id>/title")
 def save_title(doc_id: int):
     payload = request.get_json(force=True)
-    title = (payload.get("title") or "").strip()
-    db.execute("UPDATE documents SET title = ? WHERE id = ?", (title, doc_id))
-    return jsonify({"ok": True, "title": title})
 
+    line_ids = [int(x) for x in (payload.get("line_ids") or [])]
+
+    if not line_ids:
+        abort(400, "line_ids is required")
+
+    placeholders = ",".join(["?"] * len(line_ids))
+
+    lines = db.fetch_all(
+        f"""
+        SELECT *
+        FROM lines
+        WHERE doc_id = ?
+          AND id IN ({placeholders})
+        ORDER BY page_no, line_no
+        """,
+        (doc_id, *line_ids),
+    )
+
+    if len(lines) != len(line_ids):
+        abort(400, "some line_ids are invalid")
+
+    title = " ".join(
+        [(row["text"] or "").strip() for row in lines if (row["text"] or "").strip()]
+    ).strip()
+
+    db.execute(
+        "UPDATE documents SET title = ? WHERE id = ?",
+        (title, doc_id),
+    )
+
+    # 既存のタイトル行をクリア
+    db.execute(
+        """
+        UPDATE lines
+        SET usage_type = NULL,
+            usage_ref_id = NULL
+        WHERE doc_id = ?
+          AND usage_type = 'document_title'
+        """,
+        (doc_id,),
+    )
+
+    # 新しくセット
+    _set_lines_usage(line_ids, "document_title", doc_id)
+
+    return jsonify({"ok": True, "title": title})
 def _set_lines_usage(line_ids: list[int], usage_type: str, usage_ref_id: int) -> None:
     """
     line の使用状態をまとめて更新する関数。

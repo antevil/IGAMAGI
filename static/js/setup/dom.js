@@ -7,6 +7,8 @@ export const els = {
   reloadBtn: $("reloadBtn"),
 
   titleInput: $("titleInput"),
+  titleCard: $("titleCard"),
+  titleHint: $("titleHint"),
   saveTitleBtn: $("saveTitleBtn"),
 
   pdfStack: $("pdfStack"),

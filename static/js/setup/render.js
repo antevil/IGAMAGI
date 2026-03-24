@@ -92,10 +92,27 @@ export function applyMode() {
   els.lineModeBtn?.classList.toggle("is-active", isLineMode);
   els.figureModeBtn?.classList.toggle("is-active", isFigureMode);
 
+  els.titleCard?.classList.toggle("ring-2", state.titleEditMode);
+  els.titleCard?.classList.toggle("ring-amber-400", state.titleEditMode);
+  els.titleCard?.classList.toggle("bg-amber-950/20", state.titleEditMode);
+
+  els.targetHeadingBtn?.classList.toggle("hidden", state.titleEditMode);
+  els.targetBodyBtn?.classList.toggle("hidden", state.titleEditMode);
+
+  if (els.titleHint) {
+    els.titleHint.textContent = state.titleEditMode
+      ? "タイトル行を複数選択してください。保存後は段落作成に戻ります。"
+      : "文書名をクリックするとタイトル編集に戻れます。";
+  }
+
   if (els.modeHint) {
-    els.modeHint.textContent = isLineMode
-      ? "現在: Line選択モード"
-      : "現在: Figure選択モード（ドラッグでbbox）";
+    if (state.titleEditMode) {
+      els.modeHint.textContent = "現在: タイトル行選択モード";
+    } else {
+      els.modeHint.textContent = isLineMode
+        ? "現在: Line選択モード"
+        : "現在: Figure選択モード（ドラッグでbbox）";
+    }
   }
 }
 
@@ -147,13 +164,16 @@ export function renderLinesForPage(pageNo) {
       div.classList.add("used-caption");
     }
 
+        const inTitle = isLineSelected(line.id, "title");
     const inHeading = isLineSelected(line.id, "heading");
     const inBody = isLineSelected(line.id, "body");
     const inFigureCaption =
       Array.isArray(state.figureCaptionSelectedLineIds) &&
       state.figureCaptionSelectedLineIds.includes(Number(line.id));
 
-    if (state.mode === "figure" && inFigureCaption) {
+    if (state.titleEditMode && inTitle) {
+      div.classList.add("selected-body");
+    } else if (state.mode === "figure" && inFigureCaption) {
       div.classList.add("selected-caption");
     } else if (inHeading && inBody) {
       div.classList.add("selected-both");

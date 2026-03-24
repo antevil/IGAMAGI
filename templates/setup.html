@@ -136,7 +136,7 @@
             Readerへ
           </a>
 
-          <div class="min-w-0 flex items-center gap-2">
+          <div id="titleCard" class="min-w-0 flex items-center gap-2">
             <span class="shrink-0 text-sm text-zinc-400">文書名</span>
             <input
               id="titleInput"
@@ -144,6 +144,9 @@
               value="{{ document.title or '' }}"
               class="w-[28rem] max-w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500"
             />
+            <p id="titleHint" class="mt-2 text-xs text-zinc-400">
+              文書名をクリックするとタイトル編集に戻れます。
+            </p>
             <button
               id="saveTitleBtn"
               type="button"

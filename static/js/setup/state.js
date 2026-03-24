@@ -19,6 +19,9 @@ export const state = {
 
   activeTab: "paragraph",
 
+  titleEditMode: false,
+  titleSelectedLineIds: [],
+
   headingSelectedLineIds: [],
   bodySelectedLineIds: [],
 
