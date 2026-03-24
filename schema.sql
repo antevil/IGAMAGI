@@ -82,15 +82,17 @@ CREATE INDEX IF NOT EXISTS idx_sentences_paragraph
 ON sentences(paragraph_id, sentence_index);
 
 CREATE TABLE IF NOT EXISTS figures (
-  id              INTEGER PRIMARY KEY,
-  doc_id          INTEGER NOT NULL,
-  fig_no          TEXT NOT NULL,
-  page_no         INTEGER NOT NULL,
-  image_bbox      TEXT NOT NULL,
-  caption_text    TEXT,
-  image_path      TEXT,
-  created_at      TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE
+    id INTEGER PRIMARY KEY,
+    doc_id INTEGER NOT NULL,
+    fig_no TEXT NOT NULL,
+    page_no INTEGER NOT NULL,
+    image_bbox TEXT NOT NULL,
+    caption_text TEXT,
+    caption_normalized_text TEXT,
+    caption_translated_text TEXT,
+    image_path TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_figures_doc_page

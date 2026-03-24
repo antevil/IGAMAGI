@@ -232,7 +232,14 @@
 
       ${imgSrc ? `<img src="${escapeHtml(imgSrc)}" class="w-full rounded-lg border border-zinc-800" alt="${escapeHtml(figure.fig_no || "figure")}">` : ""}
 
-      <div class="text-sm text-zinc-300 whitespace-pre-wrap">${escapeHtml(figure.caption_text || "")}</div>
+      <div class="space-y-2">
+        <div class="text-sm text-zinc-300 whitespace-pre-wrap">
+          ${escapeHtml(figure.caption_normalized_text || figure.caption_text || "")}
+        </div>
+        <div class="text-sm text-zinc-400 whitespace-pre-wrap">
+          ${escapeHtml(figure.caption_translated_text || "")}
+        </div>
+      </div>
     `;
 
     card.querySelector(".editFigureBtn").addEventListener("click", () => {

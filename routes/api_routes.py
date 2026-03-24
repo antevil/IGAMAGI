@@ -302,6 +302,10 @@ def create_figure(doc_id: int):
         float(image_bbox_payload["y1"]),
     )
     # 2. caption_line_ids があれば caption_text を組み立て直す
+    caption_text = None
+    caption_normalized_text = None
+    caption_translated_text = None
+
     if caption_line_ids:
         placeholders = ",".join(["?"] * len(caption_line_ids))
         caption_lines = db.fetch_all(
@@ -314,15 +318,38 @@ def create_figure(doc_id: int):
             """,
             (doc_id, *caption_line_ids),
         )
-        if caption_lines:
-            caption_text = build_paragraph_text(caption_lines).strip() or None
 
-    figure_id = db.execute(
+        if caption_lines:
+            (
+                caption_text,
+                caption_normalized_text,
+                caption_translated_text,
+            ) = _build_figure_caption_texts(caption_lines)
+        figure_id = db.execute(
         """
-        INSERT INTO figures (doc_id, fig_no, page_no, image_bbox, caption_text, image_path)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO figures
+            (
+                doc_id,
+                fig_no,
+                page_no,
+                image_bbox,
+                caption_text,
+                caption_normalized_text,
+                caption_translated_text,
+                image_path
+            )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (doc_id, fig_no, page_no, image_bbox, caption_text, None),
+        (
+            doc_id,
+            fig_no,
+            page_no,
+            image_bbox,
+            caption_text,
+            caption_normalized_text,
+            caption_translated_text,
+            None,
+        ),
     )
 
     # 4. caption に使った lines に usage 情報を書き込む
@@ -382,6 +409,23 @@ def _clear_lines_usage_for_figure(figure_id: int):
         (figure_id,),
     )
 
+def _build_figure_caption_texts(caption_lines):
+    raw_caption_text = build_paragraph_text(caption_lines).strip() or None
+    normalized_caption_text = (
+        normalize_paragraph_text(raw_caption_text).strip()
+        if raw_caption_text
+        else None
+    )
+
+    translated_caption_text = None
+    if normalized_caption_text:
+        try:
+            translated = translator.translate_texts([normalized_caption_text])
+            translated_caption_text = translated[0].strip() if translated else None
+        except TranslatorError:
+            translated_caption_text = None
+
+    return raw_caption_text, normalized_caption_text, translated_caption_text
 
 @api_bp.put("/figures/<int:figure_id>")
 def update_figure(figure_id: int):
@@ -424,7 +468,11 @@ def update_figure(figure_id: int):
     if len(caption_lines) != len(caption_line_ids):
         abort(400, "some caption_line_ids are invalid")
 
-    caption_text = build_paragraph_text(caption_lines).strip() or None
+        (
+        caption_text,
+        caption_normalized_text,
+        caption_translated_text,
+    ) = _build_figure_caption_texts(caption_lines)
 
     _clear_lines_usage_for_figure(figure_id)
 
@@ -434,7 +482,9 @@ def update_figure(figure_id: int):
         SET fig_no = ?,
             page_no = ?,
             image_bbox = ?,
-            caption_text = ?
+            caption_text = ?,
+            caption_normalized_text = ?,
+            caption_translated_text = ?
         WHERE id = ?
         """,
         (
@@ -442,6 +492,8 @@ def update_figure(figure_id: int):
             page_no,
             image_bbox,
             caption_text,
+            caption_normalized_text,
+            caption_translated_text,
             figure_id,
         ),
     )
