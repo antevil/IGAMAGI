@@ -9,6 +9,7 @@
     openParagraphId: null,
     openFigureId: null,
     currentSentenceId: null,
+    currentFigureId: null,
   };
 
   const $ = (id) => document.getElementById(id);
@@ -216,8 +217,8 @@
     const card = document.createElement("div");
     card.dataset.figureId = String(figure.id);
     card.className = isOpen
-      ? "rounded-xl border border-zinc-700 bg-zinc-900/80 p-4 space-y-3"
-      : "rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3";
+      ? "figure-card rounded-xl border border-zinc-700 bg-zinc-900/80 p-4 space-y-3"
+      : "figure-card rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 space-y-3";
 
     const imgSrc = figure.image_path || "";
 
@@ -335,6 +336,60 @@
     return best ? Number(best.dataset.sentenceId) : null;
   }
 
+  function getCurrentFigureId() {
+  const container = els.figureList;
+  if (!container) return null;
+
+  const cards = container.querySelectorAll(".figure-card");
+  if (!cards.length) return null;
+
+  const containerRect = container.getBoundingClientRect();
+  const centerY = containerRect.top + containerRect.height / 2;
+
+  let best = null;
+  let bestDist = Infinity;
+
+  for (const el of cards) {
+    const rect = el.getBoundingClientRect();
+    const elCenter = rect.top + rect.height / 2;
+    const dist = Math.abs(elCenter - centerY);
+
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = el;
+    }
+  }
+
+  return best ? Number(best.dataset.figureId) : null;
+}
+
+let saveFigureTimer = null;
+
+function scheduleSaveFigurePosition() {
+  clearTimeout(saveFigureTimer);
+
+  saveFigureTimer = setTimeout(async () => {
+    const figureId = getCurrentFigureId();
+    if (!figureId) return;
+
+    if (state.currentFigureId === figureId) return;
+
+    state.currentFigureId = figureId;
+
+    try {
+      await fetchJSON(`/api/docs/${state.docId}/reading_position`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ figure_id: figureId }),
+      });
+    } catch (err) {
+      console.error("save figure position failed", err);
+    }
+  }, 1500);
+}
+
   async function restoreReadingPosition() {
   try {
     const data = await fetchJSON(`/api/docs/${state.docId}/reading_position`);
@@ -369,6 +424,30 @@
   }
 }
 
+async function restoreFigurePosition() {
+  try {
+    const data = await fetchJSON(`/api/docs/${state.docId}/reading_position`);
+    const figureId = Number(data.last_figure_id);
+    if (!figureId) return;
+
+    requestAnimationFrame(() => {
+      const el = document.querySelector(
+        `.figure-card[data-figure-id="${figureId}"]`
+      );
+      if (!el) return;
+
+      el.scrollIntoView({ behavior: "auto", block: "center" });
+      el.classList.add("ring-2", "ring-indigo-500");
+
+      setTimeout(() => {
+        el.classList.remove("ring-2", "ring-indigo-500");
+      }, 1500);
+    });
+  } catch (err) {
+    console.error("restore figure failed", err);
+  }
+}
+
   async function loadFigures() {
     state.figureCache = await fetchJSON(`/api/docs/${state.docId}/figures`);
     renderFigureList();
@@ -391,8 +470,13 @@
   function bindEvents() {
     els.loadParagraphsBtn?.addEventListener("click", loadParagraphs);
     els.loadFiguresBtn?.addEventListener("click", loadFigures);
+
     els.paragraphList?.addEventListener("scroll", () => {
       scheduleSaveReadingPosition();
+    });
+
+    els.figureList?.addEventListener("scroll", () => {
+      scheduleSaveFigurePosition();
     });
   }
 
@@ -408,6 +492,8 @@
 
     await loadFigures();
     scrollToOpenFigure();
+
+    await restoreFigurePosition();
   }
 
   init().catch((err) => {

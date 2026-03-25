@@ -729,7 +729,7 @@ def update_paragraph(paragraph_id: int):
 def get_reading_position(doc_id: int):
     row = db.fetch_one(
         """
-        SELECT doc_id, last_sentence_id, updated_at
+        SELECT doc_id, last_sentence_id, last_figure_id, updated_at
         FROM reading_positions
         WHERE doc_id = ?
         """,
@@ -740,27 +740,54 @@ def get_reading_position(doc_id: int):
         return jsonify({
             "doc_id": doc_id,
             "last_sentence_id": None,
+            "last_figure_id": None,
         })
 
     return jsonify(dict(row))
+
 
 @api_bp.post("/docs/<int:doc_id>/reading_position")
 def save_reading_position(doc_id: int):
     payload = request.get_json(force=True)
 
     sentence_id = payload.get("sentence_id")
+    figure_id = payload.get("figure_id")
+
     if sentence_id is not None:
         sentence_id = int(sentence_id)
 
+    if figure_id is not None:
+        figure_id = int(figure_id)
+
+    existing = db.fetch_one(
+        """
+        SELECT last_sentence_id, last_figure_id
+        FROM reading_positions
+        WHERE doc_id = ?
+        """,
+        (doc_id,),
+    )
+
+    current_sentence_id = existing["last_sentence_id"] if existing else None
+    current_figure_id = existing["last_figure_id"] if existing else None
+
+    if "sentence_id" in payload:
+        current_sentence_id = sentence_id
+
+    if "figure_id" in payload:
+        current_figure_id = figure_id
+
     db.execute(
         """
-        INSERT INTO reading_positions (doc_id, last_sentence_id, updated_at)
-        VALUES (?, ?, datetime('now'))
+        INSERT INTO reading_positions
+            (doc_id, last_sentence_id, last_figure_id, updated_at)
+        VALUES (?, ?, ?, datetime('now'))
         ON CONFLICT(doc_id) DO UPDATE SET
             last_sentence_id = excluded.last_sentence_id,
+            last_figure_id = excluded.last_figure_id,
             updated_at = datetime('now')
         """,
-        (doc_id, sentence_id),
+        (doc_id, current_sentence_id, current_figure_id),
     )
 
     return jsonify({"ok": True})
