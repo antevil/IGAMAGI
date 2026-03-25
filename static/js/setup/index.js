@@ -677,8 +677,9 @@ async function init() {
   
   refreshSelectionView();
   updateFigureTexts();
-  const currentTitle = (els.titleDisplay?.value || "").trim();
-  if (!currentTitle) {
+  const currentTitle = (els.titleDisplay?.textContent || "").trim();
+
+  if (!currentTitle || currentTitle === "タイトルを選択してください") {
     enterTitleEditMode();
   }
 }
