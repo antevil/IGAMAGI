@@ -4,7 +4,6 @@ const $ = (id) => document.getElementById(id);
 
 export const els = {
   pageSelect: $("pageSelect"),
-  reloadBtn: $("reloadBtn"),
 
   titleDisplay: $("titleDisplay"),
   titleCard: $("titleCard"),

@@ -16,9 +16,7 @@
 
   const els = {
     paragraphList: $("paragraphList"),
-    loadParagraphsBtn: $("loadParagraphsBtn"),
     figureList: $("figureList"),
-    loadFiguresBtn: $("loadFiguresBtn"),
     toast: $("toast"),
   };
 
@@ -107,9 +105,6 @@
       <button class="editBtn rounded-lg border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-900/70">
         再編集
       </button>
-      <button class="splitBtn rounded-lg border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-900/70">
-        再分割+再翻訳
-      </button>
     `;
     body.appendChild(actionRow);
 
@@ -145,20 +140,6 @@
     body.querySelector(".editBtn").addEventListener("click", (event) => {
       event.stopPropagation();
       window.location.href = `/docs/${state.docId}/setup?page=${paragraph.page_no}&edit_paragraph_id=${paragraph.id}`;
-    });
-
-    body.querySelector(".splitBtn").addEventListener("click", async (event) => {
-      event.stopPropagation();
-      await fetchJSON(`/api/paragraphs/${paragraph.id}/split_sentences`, {
-        method: "POST",
-      });
-      await fetchJSON(`/api/paragraphs/${paragraph.id}/translate`, {
-        method: "POST",
-      });
-      await loadParagraphs();
-      state.openParagraphId = paragraph.id;
-      renderParagraphList();
-      showToast("段落を再分割・再翻訳しました");
     });
 
     return card;
@@ -469,9 +450,6 @@ async function restoreFigurePosition() {
   }
 
   function bindEvents() {
-    els.loadParagraphsBtn?.addEventListener("click", loadParagraphs);
-    els.loadFiguresBtn?.addEventListener("click", loadFigures);
-
     els.paragraphList?.addEventListener("scroll", () => {
       scheduleSaveReadingPosition();
     });

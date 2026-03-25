@@ -27,7 +27,6 @@ import {
   loadInitialPages,
   loadParagraphForEditData,
   loadFigureForEditData,
-  reloadLoadedPages,
   saveFigure,
   saveParagraph,
   saveTitle,
@@ -568,10 +567,6 @@ function bindEvents() {
   els.pageSelect?.addEventListener("change", () => {
     const pageNo = Number(els.pageSelect.value);
     jumpToPage(pageNo).catch((err) => showToast(err.message, true));
-  });
-
-  els.reloadBtn?.addEventListener("click", () => {
-    reloadLoadedPages().catch((err) => showToast(err.message, true));
   });
 
   window.addEventListener("resize", () => {

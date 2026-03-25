@@ -163,22 +163,6 @@ export async function loadInitialPages(pageNo = state.pageNo) {
   await ensureNearbyPages(pageNo, { force: true, cacheBust: false });
 }
 
-export async function reloadLoadedPages() {
-  const targets = state.loadedPageNos.size
-    ? [...state.loadedPageNos]
-    : getNearbyPageNos(state.pageNo);
-
-  await Promise.all(
-    targets.map((pageNo) =>
-      loadSinglePage(pageNo, { force: true, cacheBust: true })
-    )
-  );
-
-  refreshSelectionView(targets);
-  renderFigureBoxes();
-  updateFigureTexts();
-}
-
 function applyLineUsageLocally(lineIds, usageType) {
   for (const id of lineIds) {
     const line = state.lineIndex.get(Number(id));

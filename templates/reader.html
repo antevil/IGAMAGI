@@ -15,14 +15,6 @@
         <h1 class="text-xl font-semibold mt-1">{{ document.title or document.filename }}</h1>
         <p class="text-sm text-zinc-400">Reader / doc_id={{ document.id }}</p>
       </div>
-      <div class="flex gap-2 items-center flex-wrap">
-        <a href="{{ url_for('main.setup', doc_id=document.id) }}"
-           class="rounded-lg bg-zinc-800 px-3 py-2 text-sm hover:bg-zinc-700">
-          Setupへ戻る
-        </a>
-        <button id="loadParagraphsBtn" class="rounded-lg bg-zinc-800 px-3 py-2 text-sm hover:bg-zinc-700">左ペイン更新</button>
-        <button id="loadFiguresBtn" class="rounded-lg bg-zinc-800 px-3 py-2 text-sm hover:bg-zinc-700">右ペイン更新</button>
-      </div>
     </div>
   </header>
 
@@ -31,7 +23,7 @@
       <div class="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
         <div class="flex items-center justify-between mb-3">
           <div>
-            <h2 class="font-semibold">左ペイン: 段落と対訳</h2>
+            <h2 class="font-semibold">段落と対訳</h2>
             <p class="text-sm text-zinc-400">paragraph ごとに文を読み込み、英語と日本語を交互に表示</p>
           </div>
         </div>
@@ -43,7 +35,7 @@
       <div class="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4">
         <div class="flex items-center justify-between mb-3">
           <div>
-            <h2 class="font-semibold">右ペイン: 図表とcaption</h2>
+            <h2 class="font-semibold">図表と注釈</h2>
             <p class="text-sm text-zinc-400">今の段階では手動スクロールで閲覧</p>
           </div>
         </div>
