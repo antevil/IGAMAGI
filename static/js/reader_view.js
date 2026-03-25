@@ -391,6 +391,7 @@ function scheduleSaveFigurePosition() {
 }
 
   async function restoreReadingPosition() {
+    if(state.openParagraphId) return;
   try {
     const data = await fetchJSON(`/api/docs/${state.docId}/reading_position`);
     const sentenceId = data.last_sentence_id;
