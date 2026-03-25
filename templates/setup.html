@@ -72,6 +72,11 @@
       border-color: rgba(245, 158, 11, 0.35);
     }
 
+    .line-box.used-title {
+      background: rgba(236, 72, 153, 0.18);
+      border-color: rgba(236, 72, 153, 0.6);
+    }
+
     .line-box.selected-heading {
       background: rgba(168, 85, 247, 0.4);
       border-color: rgba(192, 132, 252, 0.9);
@@ -122,13 +127,6 @@
 
         <!-- 上段: 共通操作を1行に集約 -->
         <div class="flex flex-wrap items-center gap-2">
-          <a
-            href="/docs/{{ document.id }}"
-            class="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm hover:bg-zinc-800"
-          >
-            ← 戻る
-          </a>
-
           <a
             href="/docs/{{ document.id }}/reader"
             class="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm hover:bg-zinc-800"

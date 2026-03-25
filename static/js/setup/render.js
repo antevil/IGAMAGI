@@ -162,9 +162,11 @@ export function renderLinesForPage(pageNo) {
       div.classList.add("used-body");
     } else if (line.usage_type === "figure_caption") {
       div.classList.add("used-caption");
+    } else if (line.usage_type === "document_title") {
+      div.classList.add("used-title");
     }
 
-        const inTitle = isLineSelected(line.id, "title");
+    const inTitle = isLineSelected(line.id, "title");
     const inHeading = isLineSelected(line.id, "heading");
     const inBody = isLineSelected(line.id, "body");
     const inFigureCaption =

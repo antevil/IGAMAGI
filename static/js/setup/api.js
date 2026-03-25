@@ -179,6 +179,14 @@ export async function reloadLoadedPages() {
   updateFigureTexts();
 }
 
+function applyLineUsageLocally(lineIds, usageType) {
+  for (const id of lineIds) {
+    const line = state.lineIndex.get(Number(id));
+    if (!line) continue;
+    line.usage_type = usageType;
+  }
+}
+
 export async function saveTitle() {
   if (
     !Array.isArray(state.titleSelectedLineIds) ||
@@ -204,9 +212,15 @@ export async function saveTitle() {
 
   showToast("タイトルを保存しました");
 
+  applyLineUsageLocally(state.titleSelectedLineIds, "document_title");
+
   state.titleEditMode = false;
   state.titleSelectedLineIds = [];
 
+  state.activeTab = "paragraph";
+  state.mode = "line";
+
+  applyMode();
   refreshSelectionView();
 }
 export async function syncNextOrderIndex() {
@@ -276,6 +290,17 @@ export async function saveParagraph(options = {}) {
       : "保存・文分割・翻訳まで完了しました"
   );
 
+  applyLineUsageLocally(
+    bodyLines.map((line) => Number(line.id)),
+    "paragraph_body",
+    result.paragraph_id
+  );
+
+  applyLineUsageLocally(
+    headingLines.map((line) => Number(line.id)),
+    "paragraph_heading",
+    result.paragraph_id
+  );
   clearSelectionState();
   refreshSelectionView();
 
