@@ -474,6 +474,8 @@ function applyZoom() {
 
 function setZoom(nextZoom) {
   state.zoom = clampZoom(nextZoom);
+
+  localStorage.setItem(`setupZoom:${state.docId}`, String(state.zoom));
   applyZoom();
 }
 
@@ -605,6 +607,10 @@ function getOverlayFromEvent(event) {
 
 async function init() {
   if (!state.docId) return;
+  const savedZoom = Number(localStorage.getItem(`setupZoom:${state.docId}`));
+  if (Number.isFinite(savedZoom) && savedZoom > 0) {
+    state.zoom = savedZoom;
+  }
 
   if (!Array.isArray(state.figureCaptionSelectedLineIds)) {
     state.figureCaptionSelectedLineIds = [];
@@ -661,6 +667,7 @@ async function init() {
   
   refreshSelectionView();
   updateFigureTexts();
+  applyZoom();
   const currentTitle = (els.titleDisplay?.textContent || "").trim();
 
   if (!currentTitle || currentTitle === "タイトルを選択してください") {

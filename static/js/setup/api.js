@@ -222,80 +222,99 @@ export async function syncNextOrderIndex() {
 export async function saveParagraph(options = {}) {
   const { openViewer = false } = options;
 
-  const bodyLines = getSelectedLines("body");
-  if (!bodyLines.length) {
-    showToast("Body行を選択してください", true);
-    return;
-  }
+  const activeBtn = openViewer ? els.saveParagraphAndOpenBtn : els.saveParagraphBtn;
+  const originalText = activeBtn?.textContent || "";
 
-  const headingLines = getSelectedLines("heading");
-  const bodyRange = getRepresentativeRangeIds("body");
-
-  const payload = {
-    start_line_id: bodyRange.start_line_id,
-    end_line_id: bodyRange.end_line_id,
-    selected_line_ids: bodyLines.map((line) => Number(line.id)),
-    heading_line_ids: headingLines.map((line) => Number(line.id)),
-    order_index: Number(els.orderIndex.value || 0),
-    unit_type: els.unitType.value,
-  };
-
-  const isEdit =
-    Number.isFinite(state.editParagraphId) && state.editParagraphId > 0;
-
-  const result = isEdit
-    ? await fetchJSON(`/api/paragraphs/${state.editParagraphId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-    : await fetchJSON(`/api/docs/${state.docId}/paragraphs`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-  await fetchJSON(`/api/paragraphs/${result.paragraph_id}/split_sentences`, {
-    method: "POST",
-  });
-
-  const translateResult = await fetchJSON(
-    `/api/paragraphs/${result.paragraph_id}/translate`,
-    {
-      method: "POST",
+  try {
+    if (activeBtn) {
+      activeBtn.disabled = true;
+      activeBtn.textContent = openViewer ? "保存してビュー中..." : "保存中...";
+      activeBtn.classList.add("opacity-60", "cursor-not-allowed");
     }
-  );
 
-  showToast(
-    !translateResult.deepl_enabled
-      ? isEdit
-        ? "段落を更新しました。DeepLキー未設定のため翻訳は空です"
-        : "保存しました。DeepLキー未設定のため翻訳は空です"
-      : isEdit
-      ? "段落を更新して再翻訳しました"
-      : "保存・文分割・翻訳まで完了しました"
-  );
+    await new Promise(requestAnimationFrame);
 
-  applyLineUsageLocally(
-    bodyLines.map((line) => Number(line.id)),
-    "paragraph_body",
-    result.paragraph_id
-  );
+    const bodyLines = getSelectedLines("body");
+    if (!bodyLines.length) {
+      showToast("Body行を選択してください", true);
+      return;
+    }
 
-  applyLineUsageLocally(
-    headingLines.map((line) => Number(line.id)),
-    "paragraph_heading",
-    result.paragraph_id
-  );
-  clearSelectionState();
-  refreshSelectionView();
+    const headingLines = getSelectedLines("heading");
+    const bodyRange = getRepresentativeRangeIds("body");
 
-  if (!isEdit) {
-    await syncNextOrderIndex();
-  }
+    const payload = {
+      start_line_id: bodyRange.start_line_id,
+      end_line_id: bodyRange.end_line_id,
+      selected_line_ids: bodyLines.map((line) => Number(line.id)),
+      heading_line_ids: headingLines.map((line) => Number(line.id)),
+      order_index: Number(els.orderIndex.value || 0),
+      unit_type: els.unitType.value,
+    };
 
-  if (openViewer) {
-    window.location.href = `/docs/${state.docId}/reader?paragraph_id=${result.paragraph_id}`;
+    const isEdit =
+      Number.isFinite(state.editParagraphId) && state.editParagraphId > 0;
+
+    const result = isEdit
+      ? await fetchJSON(`/api/paragraphs/${state.editParagraphId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+      : await fetchJSON(`/api/docs/${state.docId}/paragraphs`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+    await fetchJSON(`/api/paragraphs/${result.paragraph_id}/split_sentences`, {
+      method: "POST",
+    });
+
+    const translateResult = await fetchJSON(
+      `/api/paragraphs/${result.paragraph_id}/translate`,
+      {
+        method: "POST",
+      }
+    );
+
+    showToast(
+      !translateResult.deepl_enabled
+        ? isEdit
+          ? "段落を更新しました。DeepLキー未設定のため翻訳は空です"
+          : "保存しました。DeepLキー未設定のため翻訳は空です"
+        : isEdit
+        ? "段落を更新して再翻訳しました"
+        : "保存・文分割・翻訳まで完了しました"
+    );
+
+    applyLineUsageLocally(
+      bodyLines.map((line) => Number(line.id)),
+      "paragraph_body",
+      result.paragraph_id
+    );
+
+    applyLineUsageLocally(
+      headingLines.map((line) => Number(line.id)),
+      "paragraph_heading",
+      result.paragraph_id
+    );
+    clearSelectionState();
+    refreshSelectionView();
+
+    if (!isEdit) {
+      await syncNextOrderIndex();
+    }
+
+    if (openViewer) {
+      window.location.href = `/docs/${state.docId}/reader?paragraph_id=${result.paragraph_id}`;
+    }
+  } finally {
+    if (activeBtn) {
+      activeBtn.disabled = false;
+      activeBtn.textContent = originalText;
+      activeBtn.classList.remove("opacity-60", "cursor-not-allowed");
+    }
   }
 }
 

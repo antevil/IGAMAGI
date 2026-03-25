@@ -6,6 +6,8 @@ import db
 from config import MAX_CONTENT_LENGTH, SECRET_KEY
 from routes.api_routes import api_bp
 from routes.main_routes import main_bp
+from dotenv import load_dotenv
+load_dotenv()
 
 
 def create_app() -> Flask:
