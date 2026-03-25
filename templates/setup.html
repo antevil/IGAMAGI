@@ -180,10 +180,6 @@
               {% endfor %}
             </select>
           </label>
-
-          <div class="ml-auto text-xs text-zinc-500">
-            Setup / doc_id={{ document.id }}
-          </div>
         </div>
 
         <!-- 下段: タブ固有操作だけ -->
@@ -205,11 +201,9 @@
               >
                 Body 0行
               </span>
+              <span id="modeHint" class="hidden text-sm text-zinc-500">Line選択</span>
 
-              <span id="selectionTargetHint" class="text-sm text-zinc-400"></span>
-              <span id="modeHint" class="text-sm text-zinc-500">Line選択</span>
-
-              <label class="ml-2 flex items-center gap-2">
+              <label class="hidden ml-2 flex items-center gap-2">
                 <span class="text-zinc-400">order</span>
                 <input
                   id="orderIndex"
@@ -220,14 +214,12 @@
                 />
               </label>
 
-              <label class="flex items-center gap-2">
+              <label class="hidden flex items-center gap-2">
                 <span class="text-zinc-400">type</span>
                 <select
                   id="unitType"
                   class="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500"
                 >
-                  <option value="title">title</option>
-                  <option value="abstract">abstract</option>
                   <option value="body" selected>body</option>
                 </select>
               </label>
@@ -255,25 +247,14 @@
               >
                 選択クリア
               </button>
-
-              <span
-                id="selectionStatus"
-                class="min-w-[14rem] rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300"
-              >
-                Body行を選択してください
-              </span>
+              <span id="selectionTargetHint" class="text-sm text-zinc-400"></span>
             </div>
           </section>
 
           <section id="figurePanel" class="hidden">
             <div class="flex flex-wrap items-center gap-2 text-sm">
               <span class="text-zinc-400">Figure作成</span>
-
-              <span id="modeHintFigure" class="text-sm text-zinc-500">
-                Figure選択
-              </span>
-
-              <label class="ml-2 flex items-center gap-2">
+              <label class="hidden ml-2 flex items-center gap-2">
                 <span class="text-zinc-400">fig</span>
                 <input
                   id="figNoInput"
@@ -284,28 +265,9 @@
                 />
               </label>
 
-              <label class="flex items-center gap-2">
-                <span class="text-zinc-400">page</span>
-                <input
-                  id="figurePageNo"
-                  type="text"
-                  readonly
-                  class="w-20 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300"
-                />
-              </label>
-
-              <label class="flex items-center gap-2">
-                <span class="text-zinc-400">caption</span>
-                <input
-                  id="captionTextInput"
-                  type="text"
-                  class="w-[26rem] max-w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500"
-                />
-              </label>
-
               <span
                 id="imageBboxText"
-                class="min-w-[14rem] rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300"
+                class="hidden min-w-[14rem] rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300"
               >
                 image_bbox: 未選択
               </span>
@@ -325,6 +287,11 @@
               >
                 bboxクリア
               </button>
+              <div class="mt-2">
+                <p id="figureGuide" class="text-sm text-zinc-400">
+                  通常ドラッグ/クリックでCaptionを選択、Shift+ドラッグでFigure領域を指定できます。
+                </p>
+              </div>
             </div>
           </section>
         </div>

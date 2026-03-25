@@ -98,16 +98,6 @@ export function applyMode() {
 
   els.targetHeadingBtn?.classList.toggle("hidden", state.titleEditMode);
   els.targetBodyBtn?.classList.toggle("hidden", state.titleEditMode);
-
-  if (els.modeHint) {
-    if (state.titleEditMode) {
-      els.modeHint.textContent = "現在: タイトル行選択モード";
-    } else {
-      els.modeHint.textContent = isLineMode
-        ? "現在: Line選択モード"
-        : "現在: Figure選択モード（ドラッグでbbox）";
-    }
-  }
 }
 
 export function updateSelectionUI() {
@@ -125,14 +115,6 @@ export function updateSelectionUI() {
 
   if (els.bodyCountBadge) {
     els.bodyCountBadge.textContent = `Body ${bodyLines.length}行`;
-  }
-
-  if (!bodyLines.length) {
-    els.selectionStatus.textContent = "Body行を選択してください";
-  } else if (!headingLines.length) {
-    els.selectionStatus.textContent = "保存できます（heading は空でも可）";
-  } else {
-    els.selectionStatus.textContent = "保存できます";
   }
 }
 

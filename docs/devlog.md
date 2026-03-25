@@ -38,4 +38,4 @@
 2026-3-22 / パラグラフ編集ボタンを作ってsetupに飛べるようにした。保存できない問題を解決。lazyload. refreshSelectionView fix. paragraphCard legacy del.createPageStack fix. cleanup.jumpfix1. / lazyloadがめちゃくちゃ難航している。実際に描画速度の改善はされたけど今日は編集ジャンプしか直せなかった。 / 明日は新規パラグラフでも動くようにしたい！
 2026-3-23 / newpara jump. figurejump. / 今日は二つ。残業90分だから仕方ないね。アニメ見てしまったな。ドーパミン中毒の動画にしておけばよかった。 / newfig jumpの時番号がリセットされるからそこを直す、captiontextがlineだけ取ってるからくっつけて翻訳もしとく。
 2026-3-24 / newfigurejump. caption translation. title independent. / 今日は３つだが最後の一つがえらい沼った。 / ブックマーク機能を追加です。
-2026-3-25 / littlefix. autoparabookmark. autofigbookmark. autofigque. autoparque. titlesetup update. viewcleanup. reload del. / 今日はロジックを自分で組んで実装ができた。AIよりスマートな解決策だろう。新境地だ。 / ブックマーク機能を追加です。
+2026-3-25 / littlefix. autoparabookmark. autofigbookmark. autofigque. autoparque. titlesetup update. viewcleanup. reload del. del fix. / 今日はロジックを自分で組んで実装ができた。AIよりスマートな解決策だろう。新境地だ。 / 今日であらかた終わった。読むところは大体できた。あとは翻訳キーを割り当ててユーザー設定する感じかな？

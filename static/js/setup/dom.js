@@ -10,8 +10,6 @@ export const els = {
   saveTitleBtn: $("saveTitleBtn"),
 
   pdfStack: $("pdfStack"),
-
-  tabMetaBtn: $("tabMetaBtn"),
   tabParagraphBtn: $("tabParagraphBtn"),
   tabFigureBtn: $("tabFigureBtn"),
 
@@ -34,7 +32,6 @@ export const els = {
   unitType: $("unitType"),
   saveParagraphBtn: $("saveParagraphBtn"),
   clearSelectionBtn: $("clearSelectionBtn"),
-  selectionStatus: $("selectionStatus"),
 
   figNoInput: $("figNoInput"),
   figurePageNo: $("figurePageNo"),

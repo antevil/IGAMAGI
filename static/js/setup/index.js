@@ -282,15 +282,6 @@ function enterTitleEditMode() {
   applyMode?.();
   refreshSelectionView?.();
 }
-
-function exitTitleEditMode() {
-  state.titleEditMode = false;
-  state.activeTab = "paragraph";
-  state.mode = "line";
-  applyMode?.();
-  refreshSelectionView?.();
-}
-
 function getEditParagraphId() {
   const raw = getQueryParam("edit_paragraph_id");
   if (raw == null) return null;
@@ -538,13 +529,6 @@ function bindEvents() {
   els.zoomInBtn?.addEventListener("click", zoomIn);
   els.zoomOutBtn?.addEventListener("click", zoomOut);
   els.zoomResetBtn?.addEventListener("click", resetZoom);
-
-  els.tabMetaBtn?.addEventListener("click", () => switchHeaderTab("meta"));
-  els.tabParagraphBtn?.addEventListener("click", () =>
-    switchHeaderTab("paragraph")
-  );
-  els.tabFigureBtn?.addEventListener("click", () => switchHeaderTab("figure"));
-
   els.clearSelectionBtn?.addEventListener("click", clearSelection);
 
   els.saveParagraphBtn?.addEventListener("click", () => {
