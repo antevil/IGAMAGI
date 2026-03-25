@@ -486,14 +486,11 @@ async function restoreFigurePosition() {
     applyInitialFigureFromQuery();
 
     await loadParagraphs();
-    scrollToOpenParagraph();
-
     await restoreReadingPosition();
-
     await loadFigures();
-    scrollToOpenFigure();
-
     await restoreFigurePosition();
+    scrollToOpenParagraph();
+    scrollToOpenFigure();
   }
 
   init().catch((err) => {

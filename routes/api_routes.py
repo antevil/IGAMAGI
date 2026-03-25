@@ -511,7 +511,7 @@ def update_figure(figure_id: int):
     if len(caption_lines) != len(caption_line_ids):
         abort(400, "some caption_line_ids are invalid")
 
-        (
+    (
         caption_text,
         caption_normalized_text,
         caption_translated_text,
@@ -558,7 +558,6 @@ def update_figure(figure_id: int):
     )
 
     return jsonify({"ok": True, "figure_id": figure_id, "image_path": image_path})
-
 
 @api_bp.post("/sentences/<int:sentence_id>/figure_refs")
 def create_sentence_figure_ref(sentence_id: int):
