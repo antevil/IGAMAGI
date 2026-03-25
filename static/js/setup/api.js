@@ -206,8 +206,8 @@ export async function saveTitle() {
     }),
   });
 
-  if (els.titleInput && result.title) {
-    els.titleInput.value = result.title;
+  if (els.titleDisplay && result.title) {
+    els.titleDisplay.value = result.title;
   }
 
   showToast("タイトルを保存しました");
@@ -219,6 +219,8 @@ export async function saveTitle() {
 
   state.activeTab = "paragraph";
   state.mode = "line";
+
+  els.saveTitleBtn.classList.add("hidden");
 
   applyMode();
   refreshSelectionView();

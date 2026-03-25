@@ -279,6 +279,7 @@ function enterTitleEditMode() {
   state.titleEditMode = true;
   state.activeTab = "paragraph";
   state.mode = "line";
+  els.saveTitleBtn.classList.remove("hidden");
   applyMode?.();
   refreshSelectionView?.();
 }
@@ -681,7 +682,7 @@ async function init() {
   
   refreshSelectionView();
   updateFigureTexts();
-  const currentTitle = (els.titleInput?.value || "").trim();
+  const currentTitle = (els.titleDisplay?.value || "").trim();
   if (!currentTitle) {
     enterTitleEditMode();
   }

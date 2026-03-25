@@ -6,9 +6,8 @@ export const els = {
   pageSelect: $("pageSelect"),
   reloadBtn: $("reloadBtn"),
 
-  titleInput: $("titleInput"),
+  titleDisplay: $("titleDisplay"),
   titleCard: $("titleCard"),
-  titleHint: $("titleHint"),
   saveTitleBtn: $("saveTitleBtn"),
 
   pdfStack: $("pdfStack"),

@@ -99,12 +99,6 @@ export function applyMode() {
   els.targetHeadingBtn?.classList.toggle("hidden", state.titleEditMode);
   els.targetBodyBtn?.classList.toggle("hidden", state.titleEditMode);
 
-  if (els.titleHint) {
-    els.titleHint.textContent = state.titleEditMode
-      ? "タイトル行を複数選択してください。保存後は段落作成に戻ります。"
-      : "文書名をクリックするとタイトル編集に戻れます。";
-  }
-
   if (els.modeHint) {
     if (state.titleEditMode) {
       els.modeHint.textContent = "現在: タイトル行選択モード";
