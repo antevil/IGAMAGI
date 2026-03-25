@@ -112,3 +112,19 @@ CREATE TABLE IF NOT EXISTS sentence_figure_refs (
 
 CREATE INDEX IF NOT EXISTS idx_sentence_figure_refs_sentence
 ON sentence_figure_refs(sentence_id, order_index);
+
+-- =========================
+-- Reading Position (Auto Bookmark)
+-- =========================
+
+CREATE TABLE IF NOT EXISTS reading_positions (
+  doc_id INTEGER PRIMARY KEY,
+  last_sentence_id INTEGER,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+
+  FOREIGN KEY (doc_id) REFERENCES documents(id) ON DELETE CASCADE,
+  FOREIGN KEY (last_sentence_id) REFERENCES sentences(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_reading_positions_sentence
+ON reading_positions(last_sentence_id);

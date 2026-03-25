@@ -724,3 +724,43 @@ def update_paragraph(paragraph_id: int):
     db.execute("DELETE FROM sentences WHERE paragraph_id = ?", (paragraph_id,))
 
     return jsonify({"ok": True, "paragraph_id": paragraph_id})
+
+@api_bp.get("/docs/<int:doc_id>/reading_position")
+def get_reading_position(doc_id: int):
+    row = db.fetch_one(
+        """
+        SELECT doc_id, last_sentence_id, updated_at
+        FROM reading_positions
+        WHERE doc_id = ?
+        """,
+        (doc_id,),
+    )
+
+    if row is None:
+        return jsonify({
+            "doc_id": doc_id,
+            "last_sentence_id": None,
+        })
+
+    return jsonify(dict(row))
+
+@api_bp.post("/docs/<int:doc_id>/reading_position")
+def save_reading_position(doc_id: int):
+    payload = request.get_json(force=True)
+
+    sentence_id = payload.get("sentence_id")
+    if sentence_id is not None:
+        sentence_id = int(sentence_id)
+
+    db.execute(
+        """
+        INSERT INTO reading_positions (doc_id, last_sentence_id, updated_at)
+        VALUES (?, ?, datetime('now'))
+        ON CONFLICT(doc_id) DO UPDATE SET
+            last_sentence_id = excluded.last_sentence_id,
+            updated_at = datetime('now')
+        """,
+        (doc_id, sentence_id),
+    )
+
+    return jsonify({"ok": True})

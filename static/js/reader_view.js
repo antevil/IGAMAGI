@@ -8,6 +8,7 @@
     figureCache: [],
     openParagraphId: null,
     openFigureId: null,
+    currentSentenceId: null,
   };
 
   const $ = (id) => document.getElementById(id);
@@ -114,7 +115,8 @@
     for (const sentence of paragraph.sentences || []) {
       const block = document.createElement("div");
       block.className =
-        "rounded-lg border border-zinc-800 bg-zinc-900/70 p-3 space-y-2";
+        "sentence-block rounded-lg border border-zinc-800 bg-zinc-900/70 p-3 space-y-2";
+      block.dataset.sentenceId = String(sentence.id);
       block.innerHTML = `
         <div class="text-sm text-zinc-100">${escapeHtml(sentence.source_text)}</div>
         <div class="text-sm text-zinc-300">${escapeHtml(sentence.translated_text || "")}</div>
@@ -280,6 +282,93 @@
     els.figureList.appendChild(addFigureCard());
   }
 
+  let saveTimer = null;
+
+  function scheduleSaveReadingPosition() {
+    clearTimeout(saveTimer);
+
+    saveTimer = setTimeout(async () => {
+      const sentenceId = getCurrentSentenceId();
+      if (!sentenceId) return;
+
+      if (state.currentSentenceId === sentenceId) return;
+
+      state.currentSentenceId = sentenceId;
+
+      try {
+        await fetchJSON(`/api/docs/${state.docId}/reading_position`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ sentence_id: sentenceId }),
+        });
+      } catch (err) {
+        console.error("save reading position failed", err);
+      }
+    }, 1500);
+  }
+  function getCurrentSentenceId() {
+    const container = els.paragraphList;
+    if (!container) return null;
+
+    const blocks = container.querySelectorAll(".sentence-block");
+    if (!blocks.length) return null;
+
+    const containerRect = container.getBoundingClientRect();
+    const centerY = containerRect.top + containerRect.height / 2;
+
+    let best = null;
+    let bestDist = Infinity;
+
+    for (const el of blocks) {
+      const rect = el.getBoundingClientRect();
+      const elCenter = rect.top + rect.height / 2;
+      const dist = Math.abs(elCenter - centerY);
+
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = el;
+      }
+    }
+
+    return best ? Number(best.dataset.sentenceId) : null;
+  }
+
+  async function restoreReadingPosition() {
+  try {
+    const data = await fetchJSON(`/api/docs/${state.docId}/reading_position`);
+    const sentenceId = data.last_sentence_id;
+
+    if (!sentenceId) return;
+
+    const ownerParagraph = state.paragraphCache.find((paragraph) =>
+      (paragraph.sentences || []).some((sentence) => Number(sentence.id) === sentenceId)
+    );
+    if (!ownerParagraph) return;
+
+    state.openParagraphId = ownerParagraph.id;
+    renderParagraphList();
+
+    requestAnimationFrame(() => {
+      const el = document.querySelector(
+        `.sentence-block[data-sentence-id="${sentenceId}"]`
+      );
+      if (!el) return;
+
+      el.scrollIntoView({ behavior: "auto", block: "center" });
+
+      // 軽くハイライト
+      el.classList.add("ring-2", "ring-indigo-500");
+      setTimeout(() => {
+        el.classList.remove("ring-2", "ring-indigo-500");
+      }, 1500);
+    });
+  } catch (err) {
+    console.error("restore failed", err);
+  }
+}
+
   async function loadFigures() {
     state.figureCache = await fetchJSON(`/api/docs/${state.docId}/figures`);
     renderFigureList();
@@ -302,6 +391,9 @@
   function bindEvents() {
     els.loadParagraphsBtn?.addEventListener("click", loadParagraphs);
     els.loadFiguresBtn?.addEventListener("click", loadFigures);
+    els.paragraphList?.addEventListener("scroll", () => {
+      scheduleSaveReadingPosition();
+    });
   }
 
   async function init() {
@@ -311,6 +403,8 @@
 
     await loadParagraphs();
     scrollToOpenParagraph();
+
+    await restoreReadingPosition();
 
     await loadFigures();
     scrollToOpenFigure();
