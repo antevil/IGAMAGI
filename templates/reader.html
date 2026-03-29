@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ document.title or document.filename }} - IGAMAGI Reader</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body class="bg-zinc-950 text-zinc-100 h-screen overflow-hidden flex flex-col">
+  <header class="shrink-0 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur">
+    <div class="max-w-[1800px] mx-auto px-4 py-4 flex items-center justify-between gap-4">
+      <div>
+        <a href="{{ url_for('main.index') }}" class="text-sm text-indigo-400 hover:text-indigo-300">← 戻る</a>
+        <h1 class="text-xl font-semibold mt-1">{{ document.title or document.filename }}</h1>
+        <p class="hidden text-sm text-zinc-400">Reader / doc_id={{ document.id }}</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-[1800px] mx-auto w-full flex-1 min-h-0 h-full px-4 py-4 grid grid-cols-12 gap-4">
+    <section class="col-span-12 xl:col-span-7 min-h-0 h-full">
+      <div class="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4 h-full min-h-0 flex flex-col">
+        <div class="flex flex-col gap-3 mb-3 shrink-0 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <h2 class="font-semibold">段落と対訳</h2>
+            <p class="text-sm text-zinc-400">日本語は初期状態で隠し、必要な文だけ開けます</p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <button
+              id="openAllJaBtn"
+              type="button"
+              class="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-900/70"
+            >
+              日本語全部オープン
+            </button>
+            <button
+              id="closeAllJaBtn"
+              type="button"
+              class="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm hover:bg-zinc-900/70"
+            >
+              日本語全部クローズ
+            </button>
+            <div class="rounded-lg border border-zinc-800 bg-zinc-950/70 px-3 py-1.5 text-xs text-zinc-400">
+              W: 上 / S: 次 / A: 閉じる / D: 開く
+            </div>
+          </div>
+        </div>
+
+        <div id="paragraphList" class="space-y-3 flex-1 min-h-0 overflow-y-auto"></div>
+      </div>
+    </section>
+
+    <section class="col-span-12 xl:col-span-5 min-h-0 h-full">
+      <div class="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4 h-full min-h-0 flex flex-col">
+        <div class="flex items-center justify-between mb-3 shrink-0">
+          <div>
+            <h2 class="font-semibold">図表と注釈</h2>
+            <p class="text-sm text-zinc-400">今の段階では手動スクロールで閲覧</p>
+          </div>
+        </div>
+        <div id="figureList" class="space-y-4 flex-1 min-h-0 overflow-y-auto"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="fixed right-4 bottom-4 hidden rounded-xl bg-zinc-900 border border-zinc-700 px-4 py-3 text-sm shadow-2xl"></div>
+
+  <script>
+    window.READER_BOOTSTRAP = {
+      docId: {{ document.id }},
+      mode: "reader"
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/reader_view.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IGAMAGI Reader</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen">
+  <main class="max-w-5xl mx-auto px-6 py-10 space-y-8">
+    <section class="space-y-3">
+      <h1 class="text-3xl font-semibold">IGAMAGI Reader</h1>
+      <p class="text-zinc-300">PDFを取り込み、段落を手動で確定し、文分割・翻訳・図表連携を行う半自動ビューアです。</p>
+    </section>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <section class="space-y-2">
+          {% for m in messages %}
+            <div class="rounded-xl border border-emerald-800 bg-emerald-950/40 px-4 py-3 text-sm">{{ m }}</div>
+          {% endfor %}
+        </section>
+      {% endif %}
+    {% endwith %}
+
+    <section class="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-6">
+      <form action="{{ url_for('main.upload_pdf') }}" method="post" enctype="multipart/form-data" class="space-y-4">
+        <div>
+          <label class="block text-sm text-zinc-300 mb-2">PDFファイル</label>
+          <input type="file" name="pdf" accept="application/pdf" class="block w-full text-sm text-zinc-200 file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-4 file:py-2 file:text-white hover:file:bg-indigo-500">
+        </div>
+        <button class="rounded-xl bg-indigo-600 px-5 py-3 font-medium hover:bg-indigo-500">アップロードして抽出開始</button>
+      </form>
+    </section>
+
+    <section class="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-6">
+      <h2 class="text-xl font-semibold mb-4">既存ドキュメント</h2>
+      <div class="space-y-3">
+        {% for doc in docs %}
+          <a href="{{ url_for('main.reader', doc_id=doc.id) }}" class="block rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 hover:border-indigo-500">
+            <div class="font-medium">{{ doc.title or doc.filename }}</div>
+            <div class="text-sm text-zinc-400">ID: {{ doc.id }} / {{ doc.filename }}</div>
+          </a>
+        {% else %}
+          <p class="text-zinc-400">まだドキュメントはありません。</p>
+        {% endfor %}
+      </div>
+    </section>
+  </main>
+</body>
+</html>

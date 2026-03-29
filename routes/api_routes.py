@@ -1,0 +1,792 @@
+from __future__ import annotations
+
+import json
+
+from flask import Blueprint, abort, jsonify, request, send_file
+
+import db
+from config import PREVIEW_DPI
+from services.figures import bbox_json, save_figure_crop
+from services.paragraphs import build_paragraph_text, normalize_paragraph_text
+from services.preview import render_page_png_bytes
+from services.sentences import split_sentences
+from services.translator import TranslatorError, translator
+
+api_bp = Blueprint("api", __name__, url_prefix="/api")
+
+
+@api_bp.get("/docs/<int:doc_id>") 
+def get_document(doc_id: int):
+    doc = db.fetch_one("SELECT * FROM documents WHERE id = ?", (doc_id,))
+    if doc is None:
+        abort(404)
+    return jsonify(doc)
+
+
+@api_bp.get("/docs/<int:doc_id>/pages")
+def get_pages(doc_id: int):
+    rows = db.fetch_all(
+        "SELECT page_no, COUNT(*) AS line_count FROM lines WHERE doc_id = ? GROUP BY page_no ORDER BY page_no",
+        (doc_id,),
+    )
+    return jsonify(rows)
+
+
+@api_bp.get("/docs/<int:doc_id>/pages/<int:page_no>/lines")
+def get_page_lines(doc_id: int, page_no: int):
+    """
+    setup 画面用に、そのページの line 一覧を返すAPI。
+
+    役割:
+    - ページの自然サイズを返す
+    - line 座標と text を返す
+    - usage_type / usage_ref_id を返して、
+      フロントで「使用済み line の色分け」ができるようにする
+    """
+    page_row = db.fetch_one(
+        """
+        SELECT page_width, page_height
+        FROM pages
+        WHERE doc_id = ? AND page_no = ?
+        """,
+        (doc_id, page_no),
+    )
+    if page_row is None:
+        abort(404)
+
+    lines = db.fetch_all(
+        """
+        SELECT
+            id, doc_id, page_no, line_no, text,
+            x0, y0, x1, y1,
+            usage_type, usage_ref_id
+        FROM lines
+        WHERE doc_id = ? AND page_no = ?
+        ORDER BY line_no
+        """,
+        (doc_id, page_no),
+    )
+
+    return jsonify(
+        {
+            "page_width": page_row["page_width"],
+            "page_height": page_row["page_height"],
+            "lines": [dict(row) for row in lines],
+        }
+    )
+
+
+@api_bp.get("/docs/<int:doc_id>/pages/<int:page_no>/preview")
+def get_page_preview(doc_id: int, page_no: int):
+    doc = db.fetch_one("SELECT * FROM documents WHERE id = ?", (doc_id,))
+    if doc is None:
+        abort(404)
+    png_bytes = render_page_png_bytes(doc["pdf_path"], page_no, PREVIEW_DPI)
+    return send_file(
+        __import__("io").BytesIO(png_bytes),
+        mimetype="image/png",
+        download_name=f"doc_{doc_id}_page_{page_no}.png",
+    )
+
+
+@api_bp.post("/docs/<int:doc_id>/title")
+def save_title(doc_id: int):
+    payload = request.get_json(force=True)
+
+    line_ids = [int(x) for x in (payload.get("line_ids") or [])]
+
+    if not line_ids:
+        abort(400, "line_ids is required")
+
+    placeholders = ",".join(["?"] * len(line_ids))
+
+    lines = db.fetch_all(
+        f"""
+        SELECT *
+        FROM lines
+        WHERE doc_id = ?
+          AND id IN ({placeholders})
+        ORDER BY page_no, line_no
+        """,
+        (doc_id, *line_ids),
+    )
+
+    if len(lines) != len(line_ids):
+        abort(400, "some line_ids are invalid")
+
+    title = " ".join(
+        [(row["text"] or "").strip() for row in lines if (row["text"] or "").strip()]
+    ).strip()
+
+    db.execute(
+        "UPDATE documents SET title = ? WHERE id = ?",
+        (title, doc_id),
+    )
+
+    # 既存のタイトル行をクリア
+    db.execute(
+        """
+        UPDATE lines
+        SET usage_type = NULL,
+            usage_ref_id = NULL
+        WHERE doc_id = ?
+          AND usage_type = 'document_title'
+        """,
+        (doc_id,),
+    )
+
+    # 新しくセット
+    _set_lines_usage(line_ids, "document_title", doc_id)
+
+    return jsonify({"ok": True, "title": title})
+def _set_lines_usage(line_ids: list[int], usage_type: str, usage_ref_id: int) -> None:
+    """
+    line の使用状態をまとめて更新する関数。
+
+    役割:
+    - paragraph / figure を保存したあとに、
+      関連する lines に usage_type と usage_ref_id を書き込む
+    - setup 画面で「この line はもう使われたか」を判定しやすくする
+
+    例:
+    - paragraph の heading 行 -> usage_type = "paragraph_heading"
+    - paragraph の body 行    -> usage_type = "paragraph_body"
+    - figure の caption 行    -> usage_type = "figure_caption"
+    """
+    if not line_ids:
+        return
+
+    placeholders = ",".join(["?"] * len(line_ids))
+    db.execute(
+        f"""
+        UPDATE lines
+        SET usage_type = ?, usage_ref_id = ?
+        WHERE id IN ({placeholders})
+        """,
+        (usage_type, usage_ref_id, *line_ids),
+    )
+
+@api_bp.post("/docs/<int:doc_id>/paragraphs")
+def create_paragraph(doc_id: int):
+    """
+    paragraph を1件保存するAPI。
+
+    役割:
+    - body の line 群から raw_text / normalized_text を組み立てる
+    - heading の line 群から heading_text を組み立てる
+    - paragraphs テーブルに保存する
+    - 保存に使った lines に usage 情報を書き込む
+    """
+    payload = request.get_json(force=True)
+
+    # フロントから受け取った line id 一覧
+    selected_line_ids = [int(x) for x in (payload.get("selected_line_ids") or [])]
+    heading_line_ids = [int(x) for x in (payload.get("heading_line_ids") or [])]
+
+    order_index = int(payload["order_index"])
+    # 将来 title / abstract などを区別したい時のための種別
+    unit_type = (payload.get("unit_type") or "body").strip() or "body"
+
+    explicit_heading_text = (payload.get("heading_text") or "").strip() #削除予定。
+
+    # body は必須
+    if not selected_line_ids:
+        abort(400, "selected_line_ids is required")
+
+    # body 行を取得
+    placeholders = ",".join(["?"] * len(selected_line_ids))
+    body_lines = db.fetch_all(
+        f"""
+        SELECT *
+        FROM lines
+        WHERE doc_id = ?
+          AND id IN ({placeholders})
+        ORDER BY page_no, line_no
+        """,
+        (doc_id, *selected_line_ids),
+    )
+
+    if not body_lines:
+        abort(400, "invalid selected_line_ids")
+
+    # heading 行を取得（任意）
+    heading_lines = []
+    if heading_line_ids:
+        heading_placeholders = ",".join(["?"] * len(heading_line_ids))
+        heading_lines = db.fetch_all(
+            f"""
+            SELECT *
+            FROM lines
+            WHERE doc_id = ?
+              AND id IN ({heading_placeholders})
+            ORDER BY page_no, line_no
+            """,
+            (doc_id, *heading_line_ids),
+        )
+
+    start_line_id = int(body_lines[0]["id"])
+    end_line_id = int(body_lines[-1]["id"])
+    start_page_no = int(body_lines[0]["page_no"])
+    end_page_no = int(body_lines[-1]["page_no"])
+
+    raw_text = build_paragraph_text(body_lines)
+    normalized_text = normalize_paragraph_text(raw_text)
+
+    heading_text = build_paragraph_text(heading_lines).strip() if heading_lines else None
+
+    paragraph_id = db.execute(
+        """
+        INSERT INTO paragraphs
+        (doc_id, order_index, unit_type, page_no, end_page_no,
+         start_line_id, end_line_id, heading_text, raw_text, normalized_text)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            doc_id,
+            order_index,
+            unit_type,
+            start_page_no,
+            end_page_no,
+            start_line_id,
+            end_line_id,
+            heading_text,
+            raw_text,
+            normalized_text,
+        ),
+    )
+    _set_lines_usage(heading_line_ids, "paragraph_heading", paragraph_id)
+    _set_lines_usage(selected_line_ids, "paragraph_body", paragraph_id)
+
+    return jsonify({"ok": True, "paragraph_id": paragraph_id})
+
+
+@api_bp.get("/docs/<int:doc_id>/paragraphs/next_order_index")
+def get_next_paragraph_order_index(doc_id: int):
+    row = db.fetch_one(
+        """
+        SELECT COALESCE(MAX(order_index), 0) AS max_order_index
+        FROM paragraphs
+        WHERE doc_id = ?
+        """,
+        (doc_id,),
+    )
+
+    max_order_index = int(row["max_order_index"] or 0)
+    return jsonify({"next_order_index": max_order_index + 1})
+
+@api_bp.get("/docs/<int:doc_id>/paragraphs")
+def list_paragraphs(doc_id: int):
+    paragraphs = db.fetch_all(
+        "SELECT * FROM paragraphs WHERE doc_id = ? ORDER BY order_index",
+        (doc_id,),
+    )
+    for paragraph in paragraphs:
+        paragraph["sentences"] = db.fetch_all(
+            "SELECT * FROM sentences WHERE paragraph_id = ? ORDER BY sentence_index",
+            (paragraph["id"],),
+        )
+    return jsonify(paragraphs)
+
+
+@api_bp.post("/paragraphs/<int:paragraph_id>/split_sentences")
+def split_paragraph_sentences(paragraph_id: int):
+    paragraph = db.fetch_one("SELECT * FROM paragraphs WHERE id = ?", (paragraph_id,))
+    if paragraph is None:
+        abort(404)
+
+    db.execute("DELETE FROM sentences WHERE paragraph_id = ?", (paragraph_id,))
+    sentences = split_sentences(paragraph["normalized_text"])
+    db.execute_many(
+        "INSERT INTO sentences (paragraph_id, sentence_index, source_text, translated_text) VALUES (?, ?, ?, ?)",
+        [(paragraph_id, idx, text, None) for idx, text in enumerate(sentences)],
+    )
+    return jsonify({"ok": True, "count": len(sentences)})
+
+
+@api_bp.post("/paragraphs/<int:paragraph_id>/translate")
+def translate_paragraph(paragraph_id: int):
+    sentence_rows = db.fetch_all(
+        "SELECT * FROM sentences WHERE paragraph_id = ? ORDER BY sentence_index",
+        (paragraph_id,),
+    )
+    texts = [row["source_text"] for row in sentence_rows]
+    try:
+        translated = translator.translate_texts(texts)
+    except TranslatorError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+    conn = db.get_db()
+    for row, translated_text in zip(sentence_rows, translated):
+        conn.execute(
+            "UPDATE sentences SET translated_text = ? WHERE id = ?",
+            (translated_text, row["id"]),
+        )
+    conn.commit()
+    return jsonify({"ok": True, "count": len(translated), "deepl_enabled": translator.enabled})
+
+
+@api_bp.post("/docs/<int:doc_id>/figures")
+def create_figure(doc_id: int):
+    payload = request.get_json(force=True)
+    fig_no = str(payload.get("fig_no") or "").strip() or "FIG"
+    page_no = int(payload["page_no"])
+    image_bbox_payload = payload.get("image_bbox") or {}
+    # Phase 1 の土台:
+    # caption line ids が来たら、将来はこちらを正として扱えるようにする
+    caption_line_ids = [int(x) for x in (payload.get("caption_line_ids") or [])]
+
+    if not caption_line_ids:
+        abort(400, "caption_line_ids is required")
+
+    image_bbox = bbox_json(
+        float(image_bbox_payload["x0"]),
+        float(image_bbox_payload["y0"]),
+        float(image_bbox_payload["x1"]),
+        float(image_bbox_payload["y1"]),
+    )
+    # 2. caption_line_ids があれば caption_text を組み立て直す
+    caption_text = None
+    caption_normalized_text = None
+    caption_translated_text = None
+
+    if caption_line_ids:
+        placeholders = ",".join(["?"] * len(caption_line_ids))
+        caption_lines = db.fetch_all(
+            f"""
+            SELECT *
+            FROM lines
+            WHERE doc_id = ?
+              AND id IN ({placeholders})
+            ORDER BY page_no, line_no
+            """,
+            (doc_id, *caption_line_ids),
+        )
+
+        if caption_lines:
+            (
+                caption_text,
+                caption_normalized_text,
+                caption_translated_text,
+            ) = _build_figure_caption_texts(caption_lines)
+        figure_id = db.execute(
+        """
+        INSERT INTO figures
+            (
+                doc_id,
+                fig_no,
+                page_no,
+                image_bbox,
+                caption_text,
+                caption_normalized_text,
+                caption_translated_text,
+                image_path
+            )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            doc_id,
+            fig_no,
+            page_no,
+            image_bbox,
+            caption_text,
+            caption_normalized_text,
+            caption_translated_text,
+            None,
+        ),
+    )
+
+    # 4. caption に使った lines に usage 情報を書き込む
+    _set_lines_usage(caption_line_ids, "figure_caption", figure_id)
+
+    doc = db.fetch_one("SELECT * FROM documents WHERE id = ?", (doc_id,))
+    image_path = save_figure_crop(doc_id, figure_id, doc["pdf_path"], page_no, image_bbox)
+    db.execute("UPDATE figures SET image_path = ? WHERE id = ?", (image_path, figure_id))
+    return jsonify({"ok": True, "figure_id": figure_id, "image_path": image_path})
+
+
+@api_bp.get("/docs/<int:doc_id>/figures")
+def list_figures(doc_id: int):
+    figures = db.fetch_all("SELECT * FROM figures WHERE doc_id = ? ORDER BY page_no, id", (doc_id,))
+    return jsonify(figures)
+
+@api_bp.get("/figures/<int:figure_id>")
+def get_figure_detail(figure_id: int):
+    figure = db.fetch_one(
+        """
+        SELECT *
+        FROM figures
+        WHERE id = ?
+        """,
+        (figure_id,),
+    )
+
+    if not figure:
+        abort(404, "figure not found")
+
+    caption_rows = db.fetch_all(
+        """
+        SELECT id
+        FROM lines
+        WHERE usage_type = 'figure_caption'
+          AND usage_ref_id = ?
+        ORDER BY page_no, line_no, id
+        """,
+        (figure_id,),
+    )
+
+    return jsonify({
+        "figure": dict(figure),
+        "caption_line_ids": [int(row["id"]) for row in caption_rows],
+    })
+
+
+def _clear_lines_usage_for_figure(figure_id: int):
+    db.execute(
+        """
+        UPDATE lines
+        SET usage_type = NULL,
+            usage_ref_id = NULL
+        WHERE usage_ref_id = ?
+          AND usage_type = 'figure_caption'
+        """,
+        (figure_id,),
+    )
+
+def _build_figure_caption_texts(caption_lines):
+    raw_caption_text = build_paragraph_text(caption_lines).strip() or None
+    normalized_caption_text = (
+        normalize_paragraph_text(raw_caption_text).strip()
+        if raw_caption_text
+        else None
+    )
+
+    translated_caption_text = None
+    if normalized_caption_text:
+        try:
+            translated = translator.translate_texts([normalized_caption_text])
+            translated_caption_text = translated[0].strip() if translated else None
+        except TranslatorError:
+            translated_caption_text = None
+
+    return raw_caption_text, normalized_caption_text, translated_caption_text
+
+@api_bp.put("/figures/<int:figure_id>")
+def update_figure(figure_id: int):
+    payload = request.get_json(force=True)
+
+    figure = db.fetch_one(
+        "SELECT * FROM figures WHERE id = ?",
+        (figure_id,),
+    )
+    if not figure:
+        abort(404, "figure not found")
+
+    fig_no = str(payload.get("fig_no") or "").strip() or "FIG"
+    page_no = int(payload["page_no"])
+    image_bbox_payload = payload.get("image_bbox") or {}
+    caption_line_ids = [int(x) for x in (payload.get("caption_line_ids") or [])]
+
+    if not caption_line_ids:
+        abort(400, "caption_line_ids is required")
+
+    image_bbox = bbox_json(
+        float(image_bbox_payload["x0"]),
+        float(image_bbox_payload["y0"]),
+        float(image_bbox_payload["x1"]),
+        float(image_bbox_payload["y1"]),
+    )
+
+    placeholders = ",".join(["?"] * len(caption_line_ids))
+    caption_lines = db.fetch_all(
+        f"""
+        SELECT *
+        FROM lines
+        WHERE doc_id = ?
+          AND id IN ({placeholders})
+        ORDER BY page_no, line_no
+        """,
+        (figure["doc_id"], *caption_line_ids),
+    )
+
+    if len(caption_lines) != len(caption_line_ids):
+        abort(400, "some caption_line_ids are invalid")
+
+    (
+        caption_text,
+        caption_normalized_text,
+        caption_translated_text,
+    ) = _build_figure_caption_texts(caption_lines)
+
+    _clear_lines_usage_for_figure(figure_id)
+
+    db.execute(
+        """
+        UPDATE figures
+        SET fig_no = ?,
+            page_no = ?,
+            image_bbox = ?,
+            caption_text = ?,
+            caption_normalized_text = ?,
+            caption_translated_text = ?
+        WHERE id = ?
+        """,
+        (
+            fig_no,
+            page_no,
+            image_bbox,
+            caption_text,
+            caption_normalized_text,
+            caption_translated_text,
+            figure_id,
+        ),
+    )
+
+    _set_lines_usage(caption_line_ids, "figure_caption", figure_id)
+
+    doc = db.fetch_one("SELECT * FROM documents WHERE id = ?", (figure["doc_id"],))
+    image_path = save_figure_crop(
+        figure["doc_id"],
+        figure_id,
+        doc["pdf_path"],
+        page_no,
+        image_bbox,
+    )
+
+    db.execute(
+        "UPDATE figures SET image_path = ? WHERE id = ?",
+        (image_path, figure_id),
+    )
+
+    return jsonify({"ok": True, "figure_id": figure_id, "image_path": image_path})
+
+@api_bp.post("/sentences/<int:sentence_id>/figure_refs")
+def create_sentence_figure_ref(sentence_id: int):
+    payload = request.get_json(force=True)
+    figure_id = int(payload["figure_id"])
+    ref_label = (payload.get("ref_label") or "").strip() or None
+    ref_text = (payload.get("ref_text") or "").strip() or None
+    order_index = int(payload.get("order_index") or 0)
+
+    ref_id = db.execute(
+        """
+        INSERT INTO sentence_figure_refs (sentence_id, figure_id, ref_label, ref_text, order_index)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (sentence_id, figure_id, ref_label, ref_text, order_index),
+    )
+    return jsonify({"ok": True, "id": ref_id})
+
+@api_bp.get("/paragraphs/<int:paragraph_id>") #パラグラフ編集時にパラグラフの行を取得する関数
+def get_paragraph_detail(paragraph_id: int):
+    paragraph = db.fetch_one(
+        """
+        SELECT *
+        FROM paragraphs
+        WHERE id = ?
+        """,
+        (paragraph_id,),
+    )
+    if not paragraph:
+        abort(404, "paragraph not found")
+
+    heading_rows = db.fetch_all(
+        """
+        SELECT id
+        FROM lines
+        WHERE usage_type = 'paragraph_heading'
+          AND usage_ref_id = ?
+        ORDER BY page_no, line_no, id
+        """,
+        (paragraph_id,),
+    )
+
+    body_rows = db.fetch_all(
+        """
+        SELECT id
+        FROM lines
+        WHERE usage_type = 'paragraph_body'
+          AND usage_ref_id = ?
+        ORDER BY page_no, line_no, id
+        """,
+        (paragraph_id,),
+    )
+
+    return jsonify({
+        "paragraph": dict(paragraph),
+        "heading_line_ids": [int(row["id"]) for row in heading_rows],
+        "body_line_ids": [int(row["id"]) for row in body_rows],
+    })
+
+def _clear_lines_usage_for_paragraph(paragraph_id: int):
+    db.execute(
+        """
+        UPDATE lines
+        SET usage_type = NULL,
+            usage_ref_id = NULL
+        WHERE usage_ref_id = ?
+          AND usage_type IN ('paragraph_heading', 'paragraph_body')
+        """,
+        (paragraph_id,),
+    )
+
+
+@api_bp.put("/paragraphs/<int:paragraph_id>")
+def update_paragraph(paragraph_id: int):
+    payload = request.get_json(force=True)
+
+    paragraph = db.fetch_one(
+        "SELECT * FROM paragraphs WHERE id = ?",
+        (paragraph_id,),
+    )
+    if not paragraph:
+        abort(404, "paragraph not found")
+
+    selected_line_ids = [int(x) for x in (payload.get("selected_line_ids") or [])]
+    heading_line_ids = [int(x) for x in (payload.get("heading_line_ids") or [])]
+    if not selected_line_ids:
+        abort(400, "selected_line_ids is required")
+
+    order_index = int(payload["order_index"])
+    unit_type = (payload.get("unit_type") or "body").strip() or "body"
+
+    placeholders = ",".join(["?"] * len(selected_line_ids))
+    body_lines = db.fetch_all(
+        f"""
+        SELECT *
+        FROM lines
+        WHERE doc_id = ?
+          AND id IN ({placeholders})
+        ORDER BY page_no, line_no, id
+        """,
+        (paragraph["doc_id"], *selected_line_ids),
+    )
+    if len(body_lines) != len(selected_line_ids):
+        abort(400, "some selected_line_ids are invalid")
+
+    heading_lines = []
+    if heading_line_ids:
+        heading_placeholders = ",".join(["?"] * len(heading_line_ids))
+        heading_lines = db.fetch_all(
+            f"""
+            SELECT *
+            FROM lines
+            WHERE doc_id = ?
+              AND id IN ({heading_placeholders})
+            ORDER BY page_no, line_no, id
+            """,
+            (paragraph["doc_id"], *heading_line_ids),
+        )
+        if len(heading_lines) != len(heading_line_ids):
+            abort(400, "some heading_line_ids are invalid")
+
+    start_page_no = int(body_lines[0]["page_no"])
+    end_page_no = int(body_lines[-1]["page_no"])
+    start_line_id = int(body_lines[0]["id"])
+    end_line_id = int(body_lines[-1]["id"])
+    heading_text = build_paragraph_text(heading_lines).strip()
+    raw_text = build_paragraph_text(body_lines)
+    normalized_text = normalize_paragraph_text(raw_text)
+
+    _clear_lines_usage_for_paragraph(paragraph_id)
+
+    db.execute(
+        """
+        UPDATE paragraphs
+        SET order_index = ?,
+            unit_type = ?,
+            page_no = ?,
+            end_page_no = ?,
+            start_line_id = ?,
+            end_line_id = ?,
+            heading_text = ?,
+            raw_text = ?,
+            normalized_text = ?
+        WHERE id = ?
+        """,
+        (
+            order_index,
+            unit_type,
+            start_page_no,
+            end_page_no,
+            start_line_id,
+            end_line_id,
+            heading_text,
+            raw_text,
+            normalized_text,
+            paragraph_id,
+        ),
+    )
+
+    _set_lines_usage(heading_line_ids, "paragraph_heading", paragraph_id)
+    _set_lines_usage(selected_line_ids, "paragraph_body", paragraph_id)
+
+    db.execute("DELETE FROM sentences WHERE paragraph_id = ?", (paragraph_id,))
+
+    return jsonify({"ok": True, "paragraph_id": paragraph_id})
+
+@api_bp.get("/docs/<int:doc_id>/reading_position")
+def get_reading_position(doc_id: int):
+    row = db.fetch_one(
+        """
+        SELECT doc_id, last_sentence_id, last_figure_id, updated_at
+        FROM reading_positions
+        WHERE doc_id = ?
+        """,
+        (doc_id,),
+    )
+
+    if row is None:
+        return jsonify({
+            "doc_id": doc_id,
+            "last_sentence_id": None,
+            "last_figure_id": None,
+        })
+
+    return jsonify(dict(row))
+
+
+@api_bp.post("/docs/<int:doc_id>/reading_position")
+def save_reading_position(doc_id: int):
+    payload = request.get_json(force=True)
+
+    sentence_id = payload.get("sentence_id")
+    figure_id = payload.get("figure_id")
+
+    if sentence_id is not None:
+        sentence_id = int(sentence_id)
+
+    if figure_id is not None:
+        figure_id = int(figure_id)
+
+    existing = db.fetch_one(
+        """
+        SELECT last_sentence_id, last_figure_id
+        FROM reading_positions
+        WHERE doc_id = ?
+        """,
+        (doc_id,),
+    )
+
+    current_sentence_id = existing["last_sentence_id"] if existing else None
+    current_figure_id = existing["last_figure_id"] if existing else None
+
+    if "sentence_id" in payload:
+        current_sentence_id = sentence_id
+
+    if "figure_id" in payload:
+        current_figure_id = figure_id
+
+    db.execute(
+        """
+        INSERT INTO reading_positions
+            (doc_id, last_sentence_id, last_figure_id, updated_at)
+        VALUES (?, ?, ?, datetime('now'))
+        ON CONFLICT(doc_id) DO UPDATE SET
+            last_sentence_id = excluded.last_sentence_id,
+            last_figure_id = excluded.last_figure_id,
+            updated_at = datetime('now')
+        """,
+        (doc_id, current_sentence_id, current_figure_id),
+    )
+
+    return jsonify({"ok": True})
