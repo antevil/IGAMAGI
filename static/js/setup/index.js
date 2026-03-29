@@ -144,7 +144,7 @@ function handleLinePointerDown(event) {
   const lineBox = event.target.closest(".line-box");
 
   const isLineMode = state.mode === "line";
-  const isFigureCaptionMode = state.mode === "figure" && !!lineBox;
+  const isFigureCaptionMode = state.mode === "figure";
   if (!isLineMode && !isFigureCaptionMode) return;
 
   if (!Array.isArray(state.figureCaptionSelectedLineIds)) {
