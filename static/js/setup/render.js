@@ -244,19 +244,38 @@ export function renderFigureBoxes() {
       .forEach((el) => el.remove());
   }
 
-  if (state.figurePageNo == null) return;
+  // ドラッグ中は live preview を優先
+  if (state.drawing) {
+    const pageNo = Number(state.drawing.pageNo);
+    const page = ensurePageShell(pageNo);
+    if (!page?.lineOverlay) return;
+
+    const rect = document.createElement("div");
+    rect.className = "draw-rect is-drawing";
+
+    const liveBBox = normalizeRect({
+      x0: state.drawing.x0,
+      y0: state.drawing.y0,
+      x1: state.drawing.x1,
+      y1: state.drawing.y1,
+    });
+
+    placeRect(pageNo, rect, liveBBox);
+    page.lineOverlay.appendChild(rect);
+    return;
+  }
+
+  // ドラッグしていないときは確定済み bbox
+  if (state.figurePageNo == null || !state.imageBBox) return;
 
   const page = ensurePageShell(state.figurePageNo);
   if (!page?.lineOverlay) return;
 
-  if (state.imageBBox) {
-    const rect = document.createElement("div");
-    rect.className = "draw-rect";
-    placeRect(state.figurePageNo, rect, state.imageBBox);
-    page.lineOverlay.appendChild(rect);
-  }
+  const rect = document.createElement("div");
+  rect.className = "draw-rect";
+  placeRect(state.figurePageNo, rect, state.imageBBox);
+  page.lineOverlay.appendChild(rect);
 }
-
 export function updateFigureTexts() {
   if (els.figurePageNo) {
     els.figurePageNo.value =
