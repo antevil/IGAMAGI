@@ -339,7 +339,7 @@ def _refresh_paragraph_sentences_and_translation(
         texts = [row["source_text"] for row in sentence_rows]
 
         try:
-            translated = translator.translate_texts(texts)
+            translated = translator.translate_sentences_as_paragraph(texts)
         except TranslatorError as exc:
             return {
                 "sentence_count": len(sentences),
