@@ -47,4 +47,5 @@ export const els = {
   zoomResetBtn: $("zoomResetBtn"),
   zoomInBtn: $("zoomInBtn"),
   zoomLabel: $("zoomLabel"),
+  translateToggle: $("translateToggle"),
 };

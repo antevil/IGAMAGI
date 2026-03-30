@@ -220,7 +220,7 @@ export async function syncNextOrderIndex() {
 }
 
 export async function saveParagraph(options = {}) {
-  const { openViewer = false } = options;
+  const { openViewer = false, shouldTranslate = true } = options;
 
   const activeBtn = openViewer ? els.saveParagraphAndOpenBtn : els.saveParagraphBtn;
   const originalText = activeBtn?.textContent || "";
@@ -271,23 +271,31 @@ export async function saveParagraph(options = {}) {
       method: "POST",
     });
 
-    const translateResult = await fetchJSON(
-      `/api/paragraphs/${result.paragraph_id}/translate`,
-      {
-        method: "POST",
-      }
-    );
+    let translateResult = null;
 
-    showToast(
-      !translateResult.deepl_enabled
-        ? isEdit
-          ? "段落を更新しました。DeepLキー未設定のため翻訳は空です"
-          : "保存しました。DeepLキー未設定のため翻訳は空です"
-        : isEdit
-        ? "段落を更新して再翻訳しました"
-        : "保存・文分割・翻訳まで完了しました"
-    );
+    if (shouldTranslate) {
+      translateResult = await fetchJSON(
+        `/api/paragraphs/${result.paragraph_id}/translate`,
+        {
+          method: "POST",
+        }
+      );
+    }
 
+    if (!shouldTranslate) {
+      showToast(isEdit ? "段落を更新しました（原文のみ）" : "保存しました（原文のみ）");
+    } else {
+      showToast(
+        !translateResult.deepl_enabled
+          ? isEdit
+            ? "段落を更新しました。DeepLキー未設定のため翻訳は空です"
+            : "保存しました。DeepLキー未設定のため翻訳は空です"
+          : isEdit
+          ? "段落を更新して再翻訳しました"
+          : "保存・文分割・翻訳まで完了しました"
+      );
+    }
+    
     applyLineUsageLocally(
       bodyLines.map((line) => Number(line.id)),
       "paragraph_body",

@@ -503,6 +503,11 @@ function isTypingTarget(target) {
   );
 }
 
+function getShouldTranslate({ forceOriginal = false } = {}) {
+  if (forceOriginal) return false;
+  return Boolean(els.translateToggle?.checked);
+}
+
 async function jumpToPage(pageNo, behavior = "smooth") {
 
   state.pageNo = Number(pageNo);
@@ -534,18 +539,21 @@ function bindEvents() {
   els.clearSelectionBtn?.addEventListener("click", clearSelection);
 
   els.saveParagraphBtn?.addEventListener("click", () => {
-    saveParagraph().catch((err) => showToast(err.message, true));
-  });
+  saveParagraph({
+    shouldTranslate: getShouldTranslate(),
+  }).catch((err) => showToast(err.message, true));
+});
 
-  els.saveParagraphAndOpenBtn?.addEventListener("click", () => {
-    saveParagraph({ openViewer: true }).catch((err) =>
-      showToast(err.message, true)
-    );
-  });
+els.saveParagraphAndOpenBtn?.addEventListener("click", () => {
+  saveParagraph({
+    openViewer: true,
+    shouldTranslate: getShouldTranslate(),
+  }).catch((err) => showToast(err.message, true));
+});
 
   els.clearFigureSelectionBtn?.addEventListener("click", clearFigure);
   els.saveFigureBtn?.addEventListener("click", () => {
-    saveFigure({ openViewer: true }).catch((err) =>
+    saveFigure({ openViewer: true, shouldTranslate: getShouldTranslate() }).catch((err) =>
       showToast(err.message, true)
     );
   });
@@ -564,23 +572,52 @@ function bindEvents() {
   });
 
   window.addEventListener("keydown", (event) => {
-    if (isTypingTarget(event.target)) return;
-    if (event.ctrlKey || event.metaKey || event.altKey) return;
-    if (event.repeat) return;
+  if (isTypingTarget(event.target)) return;
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
+  if (event.repeat) return;
 
-    const key = event.key.toLowerCase();
+  const key = event.key.toLowerCase();
 
-    if (key === "w") {
-      event.preventDefault();
-      zoomIn();
-      return;
+  if (key === "enter") {
+    if (state.activeTab !== "paragraph") return;
+
+    event.preventDefault();
+
+    saveParagraph({
+      shouldTranslate: getShouldTranslate({
+        forceOriginal: event.shiftKey,
+      }),
+    }).catch((err) => showToast(err.message, true));
+    return;
+  }
+
+  if (key === "t") {
+    if (state.activeTab !== "paragraph") return;
+
+    event.preventDefault();
+
+    if (els.translateToggle) {
+      els.translateToggle.checked = !els.translateToggle.checked;
+      showToast(
+        els.translateToggle.checked
+          ? "翻訳ありで保存します"
+          : "原文のみで保存します"
+      );
     }
+    return;
+  }
 
-    if (key === "s") {
-      event.preventDefault();
-      zoomOut();
-    }
-  });
+  if (key === "w") {
+    event.preventDefault();
+    zoomIn();
+    return;
+  }
+
+  if (key === "s") {
+    event.preventDefault();
+    zoomOut();
+  }
+});
 
   window.addEventListener("mousemove", (event) => {
     updateFigureDraw(event);
