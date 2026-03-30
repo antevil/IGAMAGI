@@ -48,4 +48,5 @@ export const els = {
   zoomInBtn: $("zoomInBtn"),
   zoomLabel: $("zoomLabel"),
   translateToggle: $("translateToggle"),
+  figureTranslateToggle: $("figureTranslateToggle"),
 };

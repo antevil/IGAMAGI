@@ -370,8 +370,8 @@ def create_figure(doc_id: int):
     fig_no = str(payload.get("fig_no") or "").strip() or "FIG"
     page_no = int(payload["page_no"])
     image_bbox_payload = payload.get("image_bbox") or {}
-    # Phase 1 の土台:
-    # caption line ids が来たら、将来はこちらを正として扱えるようにする
+    should_translate_caption = bool(payload.get("should_translate_caption", True))
+
     caption_line_ids = [int(x) for x in (payload.get("caption_line_ids") or [])]
 
     if not caption_line_ids:
@@ -383,31 +383,36 @@ def create_figure(doc_id: int):
         float(image_bbox_payload["x1"]),
         float(image_bbox_payload["y1"]),
     )
-    # 2. caption_line_ids があれば caption_text を組み立て直す
+
     caption_text = None
     caption_normalized_text = None
     caption_translated_text = None
 
-    if caption_line_ids:
-        placeholders = ",".join(["?"] * len(caption_line_ids))
-        caption_lines = db.fetch_all(
-            f"""
-            SELECT *
-            FROM lines
-            WHERE doc_id = ?
-              AND id IN ({placeholders})
-            ORDER BY page_no, line_no
-            """,
-            (doc_id, *caption_line_ids),
-        )
+    placeholders = ",".join(["?"] * len(caption_line_ids))
+    caption_lines = db.fetch_all(
+        f"""
+        SELECT *
+        FROM lines
+        WHERE doc_id = ?
+          AND id IN ({placeholders})
+        ORDER BY page_no, line_no
+        """,
+        (doc_id, *caption_line_ids),
+    )
 
-        if caption_lines:
-            (
-                caption_text,
-                caption_normalized_text,
-                caption_translated_text,
-            ) = _build_figure_caption_texts(caption_lines)
-        figure_id = db.execute(
+    if len(caption_lines) != len(caption_line_ids):
+        abort(400, "some caption_line_ids are invalid")
+
+    (
+        caption_text,
+        caption_normalized_text,
+        caption_translated_text,
+    ) = _build_figure_caption_texts(
+        caption_lines,
+        should_translate=should_translate_caption,
+    )
+
+    figure_id = db.execute(
         """
         INSERT INTO figures
             (
@@ -434,14 +439,18 @@ def create_figure(doc_id: int):
         ),
     )
 
-    # 4. caption に使った lines に usage 情報を書き込む
     _set_lines_usage(caption_line_ids, "figure_caption", figure_id)
 
     doc = db.fetch_one("SELECT * FROM documents WHERE id = ?", (doc_id,))
     image_path = save_figure_crop(doc_id, figure_id, doc["pdf_path"], page_no, image_bbox)
     db.execute("UPDATE figures SET image_path = ? WHERE id = ?", (image_path, figure_id))
-    return jsonify({"ok": True, "figure_id": figure_id, "image_path": image_path})
 
+    return jsonify({
+        "ok": True,
+        "figure_id": figure_id,
+        "image_path": image_path,
+        "caption_translated": should_translate_caption and bool(caption_translated_text),
+    })
 
 @api_bp.get("/docs/<int:doc_id>/figures")
 def list_figures(doc_id: int):
@@ -491,7 +500,7 @@ def _clear_lines_usage_for_figure(figure_id: int):
         (figure_id,),
     )
 
-def _build_figure_caption_texts(caption_lines):
+def _build_figure_caption_texts(caption_lines, should_translate: bool = True):
     raw_caption_text = build_paragraph_text(caption_lines).strip() or None
     normalized_caption_text = (
         normalize_paragraph_text(raw_caption_text).strip()
@@ -500,7 +509,7 @@ def _build_figure_caption_texts(caption_lines):
     )
 
     translated_caption_text = None
-    if normalized_caption_text:
+    if should_translate and normalized_caption_text:
         try:
             translated = translator.translate_texts([normalized_caption_text])
             translated_caption_text = translated[0].strip() if translated else None
@@ -508,7 +517,6 @@ def _build_figure_caption_texts(caption_lines):
             translated_caption_text = None
 
     return raw_caption_text, normalized_caption_text, translated_caption_text
-
 @api_bp.put("/figures/<int:figure_id>")
 def update_figure(figure_id: int):
     payload = request.get_json(force=True)
@@ -523,6 +531,7 @@ def update_figure(figure_id: int):
     fig_no = str(payload.get("fig_no") or "").strip() or "FIG"
     page_no = int(payload["page_no"])
     image_bbox_payload = payload.get("image_bbox") or {}
+    should_translate_caption = bool(payload.get("should_translate_caption", True))
     caption_line_ids = [int(x) for x in (payload.get("caption_line_ids") or [])]
 
     if not caption_line_ids:
@@ -554,7 +563,10 @@ def update_figure(figure_id: int):
         caption_text,
         caption_normalized_text,
         caption_translated_text,
-    ) = _build_figure_caption_texts(caption_lines)
+    ) = _build_figure_caption_texts(
+        caption_lines,
+        should_translate=should_translate_caption,
+    )
 
     _clear_lines_usage_for_figure(figure_id)
 
@@ -596,8 +608,12 @@ def update_figure(figure_id: int):
         (image_path, figure_id),
     )
 
-    return jsonify({"ok": True, "figure_id": figure_id, "image_path": image_path})
-
+    return jsonify({
+        "ok": True,
+        "figure_id": figure_id,
+        "image_path": image_path,
+        "caption_translated": should_translate_caption and bool(caption_translated_text),
+    })
 @api_bp.post("/sentences/<int:sentence_id>/figure_refs")
 def create_sentence_figure_ref(sentence_id: int):
     payload = request.get_json(force=True)
