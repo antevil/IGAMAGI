@@ -178,6 +178,7 @@ def create_paragraph(doc_id: int):
     - 保存に使った lines に usage 情報を書き込む
     """
     payload = request.get_json(force=True)
+    should_translate = bool(payload.get("should_translate", True))
 
     # フロントから受け取った line id 一覧
     selected_line_ids = [int(x) for x in (payload.get("selected_line_ids") or [])]
@@ -257,8 +258,20 @@ def create_paragraph(doc_id: int):
     _set_lines_usage(heading_line_ids, "paragraph_heading", paragraph_id)
     _set_lines_usage(selected_line_ids, "paragraph_body", paragraph_id)
 
-    return jsonify({"ok": True, "paragraph_id": paragraph_id})
+    meta = _refresh_paragraph_sentences_and_translation(
+        paragraph_id=paragraph_id,
+        normalized_text=normalized_text,
+        should_translate=should_translate,
+    )
 
+    return jsonify({
+        "ok": True,
+        "paragraph_id": paragraph_id,
+        "sentence_count": meta["sentence_count"],
+        "translated_count": meta["translated_count"],
+        "deepl_enabled": meta["deepl_enabled"],
+        "translate_error": meta.get("translate_error"),
+    })
 
 @api_bp.get("/docs/<int:doc_id>/paragraphs/next_order_index")
 def get_next_paragraph_order_index(doc_id: int):
@@ -288,41 +301,67 @@ def list_paragraphs(doc_id: int):
     return jsonify(paragraphs)
 
 
-@api_bp.post("/paragraphs/<int:paragraph_id>/split_sentences")
-def split_paragraph_sentences(paragraph_id: int):
-    paragraph = db.fetch_one("SELECT * FROM paragraphs WHERE id = ?", (paragraph_id,))
-    if paragraph is None:
-        abort(404)
-
+def _refresh_paragraph_sentences_and_translation(
+    paragraph_id: int,
+    normalized_text: str,
+    should_translate: bool,
+):
     db.execute("DELETE FROM sentences WHERE paragraph_id = ?", (paragraph_id,))
-    sentences = split_sentences(paragraph["normalized_text"])
+
+    sentences = split_sentences(normalized_text)
+    if not sentences:
+        return {
+            "sentence_count": 0,
+            "translated_count": 0,
+            "deepl_enabled": translator.enabled,
+        }
+
     db.execute_many(
-        "INSERT INTO sentences (paragraph_id, sentence_index, source_text, translated_text) VALUES (?, ?, ?, ?)",
+        """
+        INSERT INTO sentences (paragraph_id, sentence_index, source_text, translated_text)
+        VALUES (?, ?, ?, ?)
+        """,
         [(paragraph_id, idx, text, None) for idx, text in enumerate(sentences)],
     )
-    return jsonify({"ok": True, "count": len(sentences)})
 
+    translated_count = 0
 
-@api_bp.post("/paragraphs/<int:paragraph_id>/translate")
-def translate_paragraph(paragraph_id: int):
-    sentence_rows = db.fetch_all(
-        "SELECT * FROM sentences WHERE paragraph_id = ? ORDER BY sentence_index",
-        (paragraph_id,),
-    )
-    texts = [row["source_text"] for row in sentence_rows]
-    try:
-        translated = translator.translate_texts(texts)
-    except TranslatorError as exc:
-        return jsonify({"ok": False, "error": str(exc)}), 400
-
-    conn = db.get_db()
-    for row, translated_text in zip(sentence_rows, translated):
-        conn.execute(
-            "UPDATE sentences SET translated_text = ? WHERE id = ?",
-            (translated_text, row["id"]),
+    if should_translate:
+        sentence_rows = db.fetch_all(
+            """
+            SELECT id, source_text
+            FROM sentences
+            WHERE paragraph_id = ?
+            ORDER BY sentence_index
+            """,
+            (paragraph_id,),
         )
-    conn.commit()
-    return jsonify({"ok": True, "count": len(translated), "deepl_enabled": translator.enabled})
+        texts = [row["source_text"] for row in sentence_rows]
+
+        try:
+            translated = translator.translate_texts(texts)
+        except TranslatorError as exc:
+            return {
+                "sentence_count": len(sentences),
+                "translated_count": 0,
+                "deepl_enabled": translator.enabled,
+                "translate_error": str(exc),
+            }
+
+        conn = db.get_db()
+        for row, translated_text in zip(sentence_rows, translated):
+            conn.execute(
+                "UPDATE sentences SET translated_text = ? WHERE id = ?",
+                (translated_text, row["id"]),
+            )
+        conn.commit()
+        translated_count = len(translated)
+
+    return {
+        "sentence_count": len(sentences),
+        "translated_count": translated_count,
+        "deepl_enabled": translator.enabled,
+    }
 
 
 @api_bp.post("/docs/<int:doc_id>/figures")
@@ -633,6 +672,7 @@ def _clear_lines_usage_for_paragraph(paragraph_id: int):
 @api_bp.put("/paragraphs/<int:paragraph_id>")
 def update_paragraph(paragraph_id: int):
     payload = request.get_json(force=True)
+    should_translate = bool(payload.get("should_translate", True))
 
     paragraph = db.fetch_one(
         "SELECT * FROM paragraphs WHERE id = ?",
@@ -722,7 +762,20 @@ def update_paragraph(paragraph_id: int):
 
     db.execute("DELETE FROM sentences WHERE paragraph_id = ?", (paragraph_id,))
 
-    return jsonify({"ok": True, "paragraph_id": paragraph_id})
+    meta = _refresh_paragraph_sentences_and_translation(
+        paragraph_id=paragraph_id,
+        normalized_text=normalized_text,
+        should_translate=should_translate,
+    )
+
+    return jsonify({
+        "ok": True,
+        "paragraph_id": paragraph_id,
+        "sentence_count": meta["sentence_count"],
+       "translated_count": meta["translated_count"],
+        "deepl_enabled": meta["deepl_enabled"],
+        "translate_error": meta.get("translate_error"),
+    })
 
 @api_bp.get("/docs/<int:doc_id>/reading_position")
 def get_reading_position(doc_id: int):

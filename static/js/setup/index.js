@@ -503,9 +503,14 @@ function isTypingTarget(target) {
   );
 }
 
-function getShouldTranslate({ forceOriginal = false } = {}) {
+function getParagraphShouldTranslate({ forceOriginal = false } = {}) {
   if (forceOriginal) return false;
   return Boolean(els.translateToggle?.checked);
+}
+
+function getFigureShouldTranslate({ forceOriginal = false } = {}) {
+  if (forceOriginal) return false;
+  return Boolean(els.figureTranslateToggle?.checked);
 }
 
 async function jumpToPage(pageNo, behavior = "smooth") {
@@ -539,23 +544,25 @@ function bindEvents() {
   els.clearSelectionBtn?.addEventListener("click", clearSelection);
 
   els.saveParagraphBtn?.addEventListener("click", () => {
-  saveParagraph({
-    shouldTranslate: getShouldTranslate(),
-  }).catch((err) => showToast(err.message, true));
-});
+    saveParagraph({
+      shouldTranslate: getParagraphShouldTranslate(),
+    }).catch((err) => showToast(err.message, true));
+  });
 
-els.saveParagraphAndOpenBtn?.addEventListener("click", () => {
-  saveParagraph({
-    openViewer: true,
-    shouldTranslate: getShouldTranslate(),
-  }).catch((err) => showToast(err.message, true));
-});
+  els.saveParagraphAndOpenBtn?.addEventListener("click", () => {
+    saveParagraph({
+      openViewer: true,
+      shouldTranslate: getParagraphShouldTranslate(),
+    }).catch((err) => showToast(err.message, true));
+  });
 
   els.clearFigureSelectionBtn?.addEventListener("click", clearFigure);
+
   els.saveFigureBtn?.addEventListener("click", () => {
-    saveFigure({ openViewer: true, shouldTranslate: getShouldTranslate() }).catch((err) =>
-      showToast(err.message, true)
-    );
+    saveFigure({
+      openViewer: true,
+      shouldTranslate: getFigureShouldTranslate(),
+    }).catch((err) => showToast(err.message, true));
   });
 
   els.pageSelect?.addEventListener("change", () => {
@@ -572,52 +579,75 @@ els.saveParagraphAndOpenBtn?.addEventListener("click", () => {
   });
 
   window.addEventListener("keydown", (event) => {
-  if (isTypingTarget(event.target)) return;
-  if (event.ctrlKey || event.metaKey || event.altKey) return;
-  if (event.repeat) return;
+    if (isTypingTarget(event.target)) return;
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (event.repeat) return;
 
-  const key = event.key.toLowerCase();
+    const key = event.key.toLowerCase();
 
-  if (key === "enter") {
-    if (state.activeTab !== "paragraph") return;
+    if (key === "enter") {
+      event.preventDefault();
 
-    event.preventDefault();
+      if (state.activeTab === "figure") {
+        saveFigure({
+          openViewer: true,
+          shouldTranslate: getFigureShouldTranslate({
+            forceOriginal: event.shiftKey,
+          }),
+        }).catch((err) => showToast(err.message, true));
+        return;
+      }
 
-    saveParagraph({
-      shouldTranslate: getShouldTranslate({
-        forceOriginal: event.shiftKey,
-      }),
-    }).catch((err) => showToast(err.message, true));
-    return;
-  }
+      if (state.activeTab === "paragraph") {
+        saveParagraph({
+          openViewer: !event.shiftKey,
+          shouldTranslate: getParagraphShouldTranslate(),
+        }).catch((err) => showToast(err.message, true));
+        return;
+      }
 
-  if (key === "t") {
-    if (state.activeTab !== "paragraph") return;
-
-    event.preventDefault();
-
-    if (els.translateToggle) {
-      els.translateToggle.checked = !els.translateToggle.checked;
-      showToast(
-        els.translateToggle.checked
-          ? "翻訳ありで保存します"
-          : "原文のみで保存します"
-      );
+      return;
     }
-    return;
-  }
 
-  if (key === "w") {
-    event.preventDefault();
-    zoomIn();
-    return;
-  }
+    if (key === "t") {
+      event.preventDefault();
 
-  if (key === "s") {
-    event.preventDefault();
-    zoomOut();
-  }
-});
+      if (state.activeTab === "figure") {
+        if (els.figureTranslateToggle) {
+          els.figureTranslateToggle.checked = !els.figureTranslateToggle.checked;
+          showToast(
+            els.figureTranslateToggle.checked
+              ? "Captionを翻訳して保存します"
+              : "Captionは原文のみで保存します"
+          );
+        }
+        return;
+      }
+
+      if (state.activeTab === "paragraph") {
+        if (els.translateToggle) {
+          els.translateToggle.checked = !els.translateToggle.checked;
+          showToast(
+            els.translateToggle.checked
+              ? "段落を翻訳して保存します"
+              : "段落は原文のみで保存します"
+          );
+        }
+        return;
+      }
+    }
+
+    if (key === "w") {
+      event.preventDefault();
+      zoomIn();
+      return;
+    }
+
+    if (key === "s") {
+      event.preventDefault();
+      zoomOut();
+    }
+  });
 
   window.addEventListener("mousemove", (event) => {
     updateFigureDraw(event);

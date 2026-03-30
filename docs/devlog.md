@@ -41,4 +41,4 @@
 2026-3-25 / littlefix. autoparabookmark. autofigbookmark. autofigque. autoparque. titlesetup update. viewcleanup. reload del. del fix. / 今日はロジックを自分で組んで実装ができた。AIよりスマートな解決策だろう。新境地だ。 / 今日であらかた終わった。読むところは大体できた。あとは翻訳キーを割り当ててユーザー設定する感じかな？
 2026-3-26 / localzoom. 
 2026-3-29 / fig drag fix. cap drag fix.
-2026-3-30 / fig retio.
+2026-3-30 / fig retio. translation do or not. split sentence fix.

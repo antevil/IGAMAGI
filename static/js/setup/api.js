@@ -250,6 +250,7 @@ export async function saveParagraph(options = {}) {
       heading_line_ids: headingLines.map((line) => Number(line.id)),
       order_index: Number(els.orderIndex.value || 0),
       unit_type: els.unitType.value,
+      should_translate: shouldTranslate,
     };
 
     const isEdit =
@@ -267,35 +268,32 @@ export async function saveParagraph(options = {}) {
           body: JSON.stringify(payload),
         });
 
-    await fetchJSON(`/api/paragraphs/${result.paragraph_id}/split_sentences`, {
-      method: "POST",
-    });
-
-    let translateResult = null;
-
-    if (shouldTranslate) {
-      translateResult = await fetchJSON(
-        `/api/paragraphs/${result.paragraph_id}/translate`,
-        {
-          method: "POST",
-        }
-      );
-    }
+    const translateResult = result;
 
     if (!shouldTranslate) {
-      showToast(isEdit ? "段落を更新しました（原文のみ）" : "保存しました（原文のみ）");
+      showToast(
+        isEdit ? "段落を更新しました（原文のみ）" : "保存しました（原文のみ）"
+      );
+    } else if (translateResult.translate_error) {
+      showToast(
+        isEdit
+          ? `段落を更新しましたが、翻訳でエラー: ${translateResult.translate_error}`
+          : `保存しましたが、翻訳でエラー: ${translateResult.translate_error}`,
+        true
+      );
+    } else if (!translateResult.deepl_enabled) {
+      showToast(
+        isEdit
+          ? "段落を更新しました。DeepLキー未設定のため翻訳は空です"
+          : "保存しました。DeepLキー未設定のため翻訳は空です"
+      );
     } else {
       showToast(
-        !translateResult.deepl_enabled
-          ? isEdit
-            ? "段落を更新しました。DeepLキー未設定のため翻訳は空です"
-            : "保存しました。DeepLキー未設定のため翻訳は空です"
-          : isEdit
+        isEdit
           ? "段落を更新して再翻訳しました"
           : "保存・文分割・翻訳まで完了しました"
       );
     }
-    
     applyLineUsageLocally(
       bodyLines.map((line) => Number(line.id)),
       "paragraph_body",
@@ -335,7 +333,7 @@ export async function loadFigureForEditData(figureId) {
 }
 
 export async function saveFigure(options = {}) {
-  const { openViewer = false } = options;
+  const { openViewer = false, shouldTranslate = true } = options;
 
   if (!state.imageBBox) {
     showToast("図本体のbboxを選択してください", true);
@@ -361,6 +359,7 @@ export async function saveFigure(options = {}) {
     page_no: Number(state.figurePageNo),
     image_bbox: state.imageBBox,
     caption_line_ids: state.figureCaptionSelectedLineIds,
+    should_translate_caption: shouldTranslate,
   };
 
   const isEdit =
@@ -382,7 +381,11 @@ export async function saveFigure(options = {}) {
         body: JSON.stringify(payload),
       });
 
-  showToast(isEdit ? "Figureを更新しました" : "Figureを保存しました");
+  showToast(
+    shouldTranslate
+      ? (isEdit ? "Figureを更新しました" : "Figureを保存しました")
+      : (isEdit ? "Figureを更新しました（Caption原文のみ）" : "Figureを保存しました（Caption原文のみ）")
+  );
 
   clearFigureSelection();
   state.figureCaptionSelectedLineIds = [];
