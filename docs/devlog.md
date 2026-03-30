@@ -40,4 +40,5 @@
 2026-3-24 / newfigurejump. caption translation. title independent. / 今日は３つだが最後の一つがえらい沼った。 / ブックマーク機能を追加です。
 2026-3-25 / littlefix. autoparabookmark. autofigbookmark. autofigque. autoparque. titlesetup update. viewcleanup. reload del. del fix. / 今日はロジックを自分で組んで実装ができた。AIよりスマートな解決策だろう。新境地だ。 / 今日であらかた終わった。読むところは大体できた。あとは翻訳キーを割り当ててユーザー設定する感じかな？
 2026-3-26 / localzoom. 
-2026-3-29 / fig drag fix.
+2026-3-29 / fig drag fix. cap drag fix.
+2026-3-30 / fig retio.

@@ -3,6 +3,7 @@
   if (!boot || !boot.docId) return;
 
   const JA_UI_STORAGE_KEY = `igamagi_reader_ja_ui_${boot.docId}`;
+  const READER_LAYOUT_STORAGE_KEY = `igamagi_reader_layout_${boot.docId}`;
 
   const state = {
     docId: boot.docId,
@@ -16,6 +17,10 @@
     // 日本語表示制御
     allJapaneseOpen: false,
     openSentenceIds: [],
+
+    // レイアウト制御
+    textPaneRatio: 0.58,
+    isDraggingDivider: false,
   };
 
   const $ = (id) => document.getElementById(id);
@@ -26,6 +31,11 @@
     toast: $("toast"),
     openAllJaBtn: $("openAllJaBtn"),
     closeAllJaBtn: $("closeAllJaBtn"),
+
+    readerSplitRoot: $("readerSplitRoot"),
+    textPane: $("textPane"),
+    figurePane: $("figurePane"),
+    splitDivider: $("splitDivider"),
   };
 
   function showToast(message, isError = false) {
@@ -67,6 +77,10 @@
     return [...new Set((values || []).map((x) => Number(x)).filter((x) => Number.isFinite(x)))];
   }
 
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
   function saveJapaneseUiState() {
     try {
       const payload = {
@@ -92,6 +106,91 @@
       state.allJapaneseOpen = false;
       state.openSentenceIds = [];
     }
+  }
+
+  function saveReaderLayoutState() {
+    try {
+      const payload = {
+        textPaneRatio: Number(state.textPaneRatio),
+      };
+      localStorage.setItem(READER_LAYOUT_STORAGE_KEY, JSON.stringify(payload));
+    } catch (err) {
+      console.error("saveReaderLayoutState failed", err);
+    }
+  }
+
+  function loadReaderLayoutState() {
+    try {
+      const raw = localStorage.getItem(READER_LAYOUT_STORAGE_KEY);
+      if (!raw) return;
+
+      const data = JSON.parse(raw);
+      const ratio = Number(data?.textPaneRatio);
+      if (!Number.isFinite(ratio)) return;
+
+      state.textPaneRatio = clamp(ratio, 0.25, 0.75);
+    } catch (err) {
+      console.error("loadReaderLayoutState failed", err);
+      state.textPaneRatio = 0.58;
+    }
+  }
+
+  function applyReaderLayout() {
+    if (!els.textPane || !els.figurePane) return;
+
+    const ratio = clamp(Number(state.textPaneRatio) || 0.58, 0.25, 0.75);
+    state.textPaneRatio = ratio;
+
+    els.textPane.style.width = `${ratio * 100}%`;
+    els.figurePane.style.width = `${(1 - ratio) * 100}%`;
+  }
+
+  function updateReaderLayoutFromClientX(clientX) {
+    if (!els.readerSplitRoot) return;
+
+    const rect = els.readerSplitRoot.getBoundingClientRect();
+    if (!rect.width) return;
+
+    const nextRatio = (clientX - rect.left) / rect.width;
+    state.textPaneRatio = clamp(nextRatio, 0.25, 0.75);
+    applyReaderLayout();
+  }
+
+  function startDividerDrag(event) {
+    event.preventDefault();
+    state.isDraggingDivider = true;
+    document.body.classList.add("select-none");
+  }
+
+  function handleDividerPointerMove(event) {
+    if (!state.isDraggingDivider) return;
+    updateReaderLayoutFromClientX(event.clientX);
+  }
+
+  function stopDividerDrag() {
+    if (!state.isDraggingDivider) return;
+    state.isDraggingDivider = false;
+    document.body.classList.remove("select-none");
+    saveReaderLayoutState();
+  }
+
+  function handleDividerKeydown(event) {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+
+    event.preventDefault();
+
+    if (event.key === "ArrowLeft") {
+      state.textPaneRatio = clamp(state.textPaneRatio - 0.03, 0.25, 0.75);
+    } else if (event.key === "ArrowRight") {
+      state.textPaneRatio = clamp(state.textPaneRatio + 0.03, 0.25, 0.75);
+    } else if (event.key === "Home") {
+      state.textPaneRatio = 0.35;
+    } else if (event.key === "End") {
+      state.textPaneRatio = 0.65;
+    }
+
+    applyReaderLayout();
+    saveReaderLayoutState();
   }
 
   function isJapaneseOpen(sentenceId) {
@@ -360,7 +459,6 @@
     const sentenceId = getActiveSentenceId();
     if (!sentenceId) return;
 
-    // キー操作では全体オープンは切り替えない
     if (state.allJapaneseOpen) {
       showToast("全部オープン中です。ボタンで閉じてください");
       return;
@@ -733,9 +831,17 @@
 
   function handleKeydown(event) {
     if (isEditableTarget(event.target)) return;
-    if (event.repeat) return;
 
     const key = String(event.key || "").toLowerCase();
+
+    if (event.target === els.splitDivider) {
+      if (["arrowleft", "arrowright", "home", "end"].includes(key)) {
+        handleDividerKeydown(event);
+        return;
+      }
+    }
+
+    if (event.repeat) return;
     if (!["w", "a", "s", "d"].includes(key)) return;
 
     event.preventDefault();
@@ -777,11 +883,24 @@
       closeAllJapanese();
     });
 
+    els.splitDivider?.addEventListener("mousedown", startDividerDrag);
+    document.addEventListener("mousemove", handleDividerPointerMove);
+    document.addEventListener("mouseup", stopDividerDrag);
+    document.addEventListener("mouseleave", stopDividerDrag);
+    els.splitDivider?.addEventListener("keydown", handleDividerKeydown);
+
+    window.addEventListener("resize", () => {
+      applyReaderLayout();
+    });
+
     document.addEventListener("keydown", handleKeydown);
   }
 
   async function init() {
     loadJapaneseUiState();
+    loadReaderLayoutState();
+    applyReaderLayout();
+
     bindEvents();
     applyInitialParagraphFromQuery();
     applyInitialFigureFromQuery();
