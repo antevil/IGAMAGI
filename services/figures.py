@@ -45,4 +45,5 @@ def save_figure_crop(
     out_path = FIGURE_DIR / filename
     out_path.write_bytes(png_bytes)
 
-    return f"/static/figures/{filename}"
+    # static 配下ではなく、専用ルートで配信する
+    return f"/api/figures/{filename}"

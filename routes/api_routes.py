@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import json
 
-from flask import Blueprint, abort, jsonify, request, send_file
+from flask import Blueprint, abort, jsonify, request, send_file, send_from_directory
 
 import db
-from config import PREVIEW_DPI
+from config import PREVIEW_DPI, FIGURE_DIR
 from services.figures import bbox_json, save_figure_crop
 from services.paragraphs import build_paragraph_text, normalize_paragraph_text
 from services.preview import render_page_png_bytes
@@ -487,6 +487,12 @@ def get_figure_detail(figure_id: int):
         "caption_line_ids": [int(row["id"]) for row in caption_rows],
     })
 
+@api_bp.get("/figures/<path:filename>")
+def serve_figure_file(filename: str):
+    file_path = FIGURE_DIR / filename
+    if not file_path.exists() or not file_path.is_file():
+        abort(404)
+    return send_from_directory(FIGURE_DIR, filename)
 
 def _clear_lines_usage_for_figure(figure_id: int):
     db.execute(

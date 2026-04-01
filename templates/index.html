@@ -13,6 +13,35 @@
       <p class="text-zinc-300">PDFを取り込み、段落を手動で確定し、文分割・翻訳・図表連携を行う半自動ビューアです。</p>
     </section>
 
+    {% if update_info and update_info.update_available %}
+      <section class="rounded-2xl border border-amber-700 bg-amber-950/40 p-5">
+        <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div class="space-y-1">
+            <div class="text-sm font-semibold text-amber-300">アップデートがあります</div>
+            <p class="text-sm text-amber-100">
+              現在のバージョン: {{ update_info.current_version }}
+              <span class="mx-2 text-amber-500">→</span>
+              最新バージョン: {{ update_info.latest_version }}
+            </p>
+            <p class="text-sm text-amber-200/80">
+              今のバージョンのままでも使えますが、必要なら更新してください。
+            </p>
+          </div>
+
+          <div class="flex flex-wrap gap-3">
+            <a
+              href="{{ update_info.html_url }}"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="rounded-xl bg-amber-500 px-4 py-2 text-sm font-medium text-zinc-950 hover:bg-amber-400"
+            >
+              配布ページを開く
+            </a>
+          </div>
+        </div>
+      </section>
+    {% endif %}
+
     {% with messages = get_flashed_messages() %}
       {% if messages %}
         <section class="space-y-2">

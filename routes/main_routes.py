@@ -12,6 +12,11 @@ from services.extractor import extract_lines, extract_pages
 
 main_bp = Blueprint("main", __name__)
 
+from flask import jsonify
+from update_checker import check_for_updates
+
+def app_update_check():
+    return jsonify(check_for_updates())
 
 def allowed_file(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -19,9 +24,9 @@ def allowed_file(filename: str) -> bool:
 
 @main_bp.get("/")
 def index():
-    docs = db.fetch_all("SELECT * FROM documents ORDER BY id DESC")
-    return render_template("index.html", docs=docs)
-
+    docs = db.fetch_all("SELECT id, filename, title FROM documents ORDER BY id DESC")
+    update_info = check_for_updates()
+    return render_template("index.html", docs=docs, update_info=update_info)
 
 @main_bp.post("/upload")
 def upload_pdf():
