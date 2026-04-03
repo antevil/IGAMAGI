@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Setup - {{ document.title or document.filename }}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background: #09090b;
+      color: #f4f4f5;
+    }
+
+    .tab-btn.is-active {
+      background: rgb(39 39 42);
+      border-color: rgb(82 82 91);
+      color: white;
+    }
+
+    .sub-btn.is-active {
+      background: rgb(37 99 235);
+      border-color: rgb(59 130 246);
+      color: white;
+    }
+
+    .page-block {
+      scroll-margin-top: 10rem;
+    }
+
+    .pdf-wrap {
+      position: relative;
+      width: 100%;
+      border: 1px solid rgb(63 63 70);
+      border-radius: 1rem;
+      overflow: hidden;
+      background: rgb(24 24 27);
+    }
+
+    .page-image {
+      display: block;
+      width: 100%;
+      height: auto;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+
+    .pdf-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: auto;
+    }
+
+    .line-box {
+      position: absolute;
+      border: 1px solid rgba(161, 161, 170, 0.25);
+      background: rgba(161, 161, 170, 0.08);
+      cursor: pointer;
+    }
+
+    .line-box.used-heading {
+      background: rgba(168, 85, 247, 0.15);
+      border-color: rgba(168, 85, 247, 0.4);
+    }
+
+    .line-box.used-body {
+      background: rgba(34, 197, 94, 0.12);
+      border-color: rgba(34, 197, 94, 0.35);
+    }
+
+    .line-box.used-caption {
+      background: rgba(245, 158, 11, 0.12);
+      border-color: rgba(245, 158, 11, 0.35);
+    }
+
+    .line-box.used-title {
+      background: rgba(236, 72, 153, 0.18);
+      border-color: rgba(236, 72, 153, 0.6);
+    }
+
+    .line-box.selected-heading {
+      background: rgba(168, 85, 247, 0.4);
+      border-color: rgba(192, 132, 252, 0.9);
+    }
+
+    .line-box.selected-body {
+      background: rgba(34, 197, 94, 0.35);
+      border-color: rgba(74, 222, 128, 0.9);
+    }
+
+    .line-box.selected-both {
+      background: rgba(59, 130, 246, 0.35);
+      border-color: rgba(96, 165, 250, 0.95);
+    }
+
+    .line-box.selected-caption {
+      background: rgba(245, 158, 11, 0.4);
+      border-color: rgba(251, 191, 36, 0.95);
+    }
+
+    .drag-rect {
+      position: absolute;
+      border: 1px dashed rgba(96, 165, 250, 0.95);
+      background: rgba(59, 130, 246, 0.12);
+      pointer-events: none;
+    }
+
+    .draw-rect {
+      position: absolute;
+      border: 2px dashed rgba(34, 197, 94, 0.95);
+      background: rgba(34, 197, 94, 0.08);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <script>
+    window.READER_BOOTSTRAP = {
+      docId: {{ document.id|tojson }},
+      initialPageNo: {{ initial_page_no|default(0)|tojson }},
+      pages: {{ pages|tojson }},
+    };
+  </script>
+
+  <div class="min-h-screen">
+    <header class="sticky top-0 z-30 border-b border-zinc-800 bg-zinc-950/95 backdrop-blur">
+      <div class="mx-auto max-w-7xl px-4 py-2 space-y-2">
+
+        <!-- 上段: 共通操作を1行に集約 -->
+        <div class="flex flex-wrap items-center gap-2">
+          <a
+            href="/docs/{{ document.id }}/reader"
+            class="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm hover:bg-zinc-800"
+          >
+            Readerへ
+          </a>
+
+          <div id="titleCard" class="min-w-0 flex items-center gap-2">
+            <div
+              id="titleDisplay"
+              class="min-w-0 flex-1 truncate rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm {{ 'text-zinc-500' if not document.title else 'text-zinc-200' }}"
+              title="{{ document.title or 'タイトルを選択してください' }}"
+            >
+              {{ document.title or 'タイトルを選択してください' }}
+            </div>
+
+            <button
+              id="saveTitleBtn"
+              type="button"
+              class="hidden shrink-0 rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm hover:bg-zinc-700"
+            >
+              保存
+            </button>
+          </div>
+
+          <div class="flex flex-wrap gap-2">
+            <button
+              id="tabParagraphBtn"
+              type="button"
+              class="tab-btn rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm hover:bg-zinc-800"
+            >
+              段落作成
+            </button>
+            <button
+              id="tabFigureBtn"
+              type="button"
+              class="tab-btn rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm hover:bg-zinc-800"
+            >
+              Figure作成
+            </button>
+          </div>
+
+          <label class="flex items-center gap-2 text-sm text-zinc-300">
+            <span>Page</span>
+            <select
+              id="pageSelect"
+              class="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+            >
+              {% for page in pages %}
+                <option value="{{ page.page_no }}">{{ page.page_no + 1 }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+
+        <!-- 下段: タブ固有操作だけ -->
+        <div class="rounded-2xl border border-zinc-800 bg-zinc-900/70 p-3">
+          <section id="paragraphPanel" class="hidden">
+            <div class="flex flex-wrap items-center gap-2 text-sm">
+              <span class="text-zinc-400">段落作成</span>
+
+              <span
+                id="headingCountBadge"
+                class="rounded-full border border-zinc-700 bg-zinc-950 px-3 py-1 text-sm text-zinc-300"
+              >
+                Heading 0行
+              </span>
+
+              <span
+                id="bodyCountBadge"
+                class="rounded-full border border-zinc-700 bg-zinc-950 px-3 py-1 text-sm text-zinc-300"
+              >
+                Body 0行
+              </span>
+              <span id="modeHint" class="hidden text-sm text-zinc-500">Line選択</span>
+
+              <label class="hidden ml-2 flex items-center gap-2">
+                <span class="text-zinc-400">order</span>
+                <input
+                  id="orderIndex"
+                  type="number"
+                  min="1"
+                  value="1"
+                  class="w-20 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+                />
+              </label>
+
+              <label class="hidden flex items-center gap-2">
+                <span class="text-zinc-400">type</span>
+                <select
+                  id="unitType"
+                  class="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+                >
+                  <option value="body" selected>body</option>
+                </select>
+              </label>
+
+              <button
+                id="saveParagraphBtn"
+                type="button"
+                class="rounded-lg border border-blue-700 bg-blue-900/60 px-4 py-2 text-sm hover:bg-blue-800/70 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                段落保存
+              </button>
+
+              <label
+                class="ml-2 inline-flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-200 select-none"
+              >
+                <input
+                  id="translateToggle"
+                  type="checkbox"
+                  checked
+                  class="h-4 w-4 accent-blue-500"
+                />
+                <span>翻訳する</span>
+              </label>
+
+              <button
+                id="saveParagraphAndOpenBtn"
+                type="button"
+                class="rounded-lg border border-emerald-700 bg-emerald-900/60 px-4 py-2 text-sm hover:bg-emerald-800/70 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                保存してビュー
+              </button>
+
+              <button
+                id="clearSelectionBtn"
+                type="button"
+                class="rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm hover:bg-zinc-700"
+              >
+                選択クリア
+              </button>
+              <span id="selectionTargetHint" class="text-sm text-zinc-400"></span>
+            </div>
+          </section>
+
+          <section id="figurePanel" class="hidden">
+            <div class="flex flex-wrap items-center gap-2 text-sm">
+              <span class="text-zinc-400">Figure作成</span>
+              <label class="hidden ml-2 flex items-center gap-2">
+                <span class="text-zinc-400">fig</span>
+                <input
+                  id="figNoInput"
+                  type="number"
+                  min="1"
+                  value="1"
+                  class="w-20 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+                />
+              </label>
+
+              <span
+                id="imageBboxText"
+                class="hidden min-w-[14rem] rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300"
+              >
+                image_bbox: 未選択
+              </span>
+
+              <label
+                class="inline-flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-200 select-none"
+              >
+                <input
+                  id="figureTranslateToggle"
+                  type="checkbox"
+                  checked
+                  class="h-4 w-4 accent-amber-500"
+                />
+                <span>Captionを翻訳する</span>
+              </label>
+
+              <button
+                id="saveFigureBtn"
+                type="button"
+                class="rounded-lg border border-emerald-700 bg-emerald-900/60 px-4 py-2 text-sm hover:bg-emerald-800/70"
+              >
+                Figure保存
+              </button>
+
+              <button
+                id="clearFigureSelectionBtn"
+                type="button"
+                class="rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm hover:bg-zinc-700"
+              >
+                bboxクリア
+              </button>
+              <div class="mt-2">
+                <p id="figureGuide" class="text-sm text-zinc-400">
+                  通常ドラッグ/クリックでCaptionを選択、Shift+ドラッグでFigure領域を指定できます。
+                </p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </header>
+
+    <main class="mx-auto max-w-7xl px-4 py-6 pb-24">
+      <div id="pdfStack" class="space-y-6"></div>
+    </main>
+
+    <div
+      class="fixed bottom-4 right-4 z-40 rounded-2xl border border-zinc-700 bg-zinc-900/90 px-3 py-2 shadow-2xl backdrop-blur"
+    >
+      <div class="flex items-center gap-2">
+        <button
+          id="zoomOutBtn"
+          type="button"
+          class="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm hover:bg-zinc-700"
+        >
+          −
+        </button>
+
+        <button
+          id="zoomResetBtn"
+          type="button"
+          class="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm hover:bg-zinc-700"
+        >
+          100%
+        </button>
+
+        <button
+          id="zoomInBtn"
+          type="button"
+          class="rounded-lg border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm hover:bg-zinc-700"
+        >
+          ＋
+        </button>
+
+        <span
+          id="zoomLabel"
+          class="ml-2 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-300"
+        >
+          100%
+        </span>
+
+        <span class="ml-3 text-xs text-zinc-500">
+          W: 拡大 / S: 縮小
+        </span>
+      </div>
+    </div>
+
+    <div
+      id="toast"
+      class="hidden fixed bottom-4 right-4 z-50 rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm shadow-2xl"
+    >
+      message
+    </div>
+  </div>
+
+  <script type="module" src="/static/js/setup/index.js"></script>
+</body>
+</html>

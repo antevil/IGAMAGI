@@ -30,6 +30,8 @@ DB_PATH = DATA_ROOT / "app.db"
 
 # ===== その他 =====
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-change-me")
+# 追加
+SETTINGS_ENV_PATH = DATA_ROOT / "settings.env"
 DEEPL_AUTH_KEY = os.environ.get("DEEPL_AUTH_KEY", "").strip()
 DEEPL_BASE_URL = os.environ.get("DEEPL_BASE_URL", "https://api-free.deepl.com").strip()
 DEEPL_TARGET_LANG = os.environ.get("DEEPL_TARGET_LANG", "JA")

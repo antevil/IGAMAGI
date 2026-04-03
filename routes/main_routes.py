@@ -3,6 +3,8 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 from uuid import uuid4
+from config import SETTINGS_ENV_PATH
+import os
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 
@@ -22,6 +24,34 @@ def allowed_file(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+@main_bp.get("/settings/deepl")
+def get_deepl_settings():
+    key = ""
+    if SETTINGS_ENV_PATH.exists():
+        for line in SETTINGS_ENV_PATH.read_text().splitlines():
+            if line.startswith("DEEPL_AUTH_KEY="):
+                key = line.split("=", 1)[1]
+    return jsonify({"api_key": key})
+
+
+@main_bp.post("/settings/deepl")
+def save_deepl_settings():
+    data = request.get_json(force=True)
+
+    api_key = (data.get("api_key") or "").strip()
+    plan = (data.get("plan") or "free").strip()
+
+    base_url = "https://api-free.deepl.com"
+    if plan == "pro":
+        base_url = "https://api.deepl.com"
+
+    content = f"""DEEPL_AUTH_KEY={api_key}
+        DEEPL_BASE_URL={base_url}
+        """
+
+    SETTINGS_ENV_PATH.write_text(content, encoding="utf-8")
+
+    return jsonify({"ok": True})
 @main_bp.get("/")
 def index():
     docs = db.fetch_all("SELECT id, filename, title FROM documents ORDER BY id DESC")
