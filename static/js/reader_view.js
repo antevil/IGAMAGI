@@ -760,9 +760,33 @@
   }
 
   async function restoreReadingPosition() {
-    if (state.openParagraphId) return;
-
     try {
+      if (state.openParagraphId) {
+        const paragraph = state.paragraphCache.find(
+          (p) => Number(p.id) === Number(state.openParagraphId)
+        );
+        const firstSentenceId = Number(paragraph?.sentences?.[0]?.id);
+
+        if (firstSentenceId) {
+          focusSentence(firstSentenceId, {
+            behavior: "auto",
+            shouldFlash: true,
+            savePosition: false,
+          });
+          return;
+        }
+
+        renderParagraphList();
+        requestAnimationFrame(() => {
+          const card = els.paragraphList?.querySelector(
+            `[data-paragraph-id="${state.openParagraphId}"]`
+          );
+          if (!card) return;
+          card.scrollIntoView({ behavior: "auto", block: "start" });
+        });
+        return;
+      }
+
       const data = await fetchJSON(`/api/docs/${state.docId}/reading_position`);
       const sentenceId = Number(data.last_sentence_id);
       if (!sentenceId) return;
@@ -910,7 +934,7 @@
     await loadFigures();
     await restoreFigurePosition();
 
-    scrollToOpenParagraph();
+    //scrollToOpenParagraph();
     scrollToOpenFigure();
 
     if (!state.currentSentenceId) {

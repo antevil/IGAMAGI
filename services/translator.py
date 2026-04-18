@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from typing import Iterable
-
-import requests
-
-from config import DEEPL_AUTH_KEY, DEEPL_BASE_URL, DEEPL_TARGET_LANG
-
 import html
 import xml.etree.ElementTree as ET
+
+import requests
+import os
+import config
+
 
 class TranslatorError(RuntimeError):
     pass
@@ -22,7 +21,7 @@ class DeepLTranslator:
     @property
     def enabled(self) -> bool:
         return bool(self.auth_key)
-    
+
     def _build_sentence_xml(self, texts: list[str]) -> str:
         parts = ["<p>"]
         for idx, text in enumerate(texts):
@@ -62,10 +61,8 @@ class DeepLTranslator:
             ("text", xml_text),
             ("tag_handling", "xml"),
             ("split_sentences", "nonewlines"),
+            ("tag_handling_version", "v2"),
         ]
-
-        # 新しいタグ処理を使うなら付ける
-        data.append(("tag_handling_version", "v2"))
 
         response = requests.post(
             url,
@@ -101,8 +98,26 @@ class DeepLTranslator:
         )
         if response.status_code >= 400:
             raise TranslatorError(f"DeepL error: {response.status_code} {response.text}")
+
         payload = response.json()
         return [item.get("text", "") for item in payload.get("translations", [])]
 
 
-translator = DeepLTranslator(DEEPL_AUTH_KEY, DEEPL_BASE_URL, DEEPL_TARGET_LANG)
+def get_translator() -> DeepLTranslator:
+    auth_key, base_url, target_lang = config.get_deepl_settings()
+    return DeepLTranslator(auth_key, base_url, target_lang)
+
+
+class TranslatorProxy:
+    @property
+    def enabled(self) -> bool:
+        return get_translator().enabled
+
+    def translate_sentences_as_paragraph(self, texts: list[str]) -> list[str]:
+        return get_translator().translate_sentences_as_paragraph(texts)
+
+    def translate_texts(self, texts: list[str]) -> list[str]:
+        return get_translator().translate_texts(texts)
+
+
+translator = TranslatorProxy()

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ document.title or document.filename }} - IGAMAGI Reader</title>
+  <title>{{ document.title or document.filename }} - IGAMAGI</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
 </head>
@@ -79,7 +79,6 @@
           <div class="flex items-center justify-between mb-3 shrink-0">
             <div>
               <h2 class="font-semibold">図表と注釈</h2>
-              <p class="text-sm text-zinc-400">今の段階では手動スクロールで閲覧</p>
             </div>
           </div>
           <div id="figureList" class="space-y-4 flex-1 min-h-0 overflow-y-auto"></div>

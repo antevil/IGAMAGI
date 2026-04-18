@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>IGAMAGI Reader</title>
+  <title>IGAMAGI</title>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-zinc-950 text-zinc-100 min-h-screen">
@@ -11,7 +11,7 @@
     <section class="space-y-3">
       <div class="flex items-start justify-between gap-4">
         <div class="space-y-3">
-          <h1 class="text-3xl font-semibold">IGAMAGI Reader</h1>
+          <h1 class="text-3xl font-semibold">IGAMAGI</h1>
           <p class="text-zinc-300">PDFを取り込み、段落を手動で確定し、文分割・翻訳・図表連携を行う半自動ビューアです。</p>
         </div>
 
@@ -31,9 +31,6 @@
           <div class="text-sm font-semibold text-rose-300">DeepL APIキーが未設定です</div>
           <p class="text-sm text-rose-100">
             翻訳機能を使うにはDeepL APIキーの設定が必要です。
-          </p>
-          <p class="text-sm text-rose-200/80">
-            Free版とPro版のどちらにも対応しています。
           </p>
         </div>
 
@@ -94,7 +91,7 @@
           <label class="block text-sm text-zinc-300 mb-2">PDFファイル</label>
           <input type="file" name="pdf" accept="application/pdf" class="block w-full text-sm text-zinc-200 file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-4 file:py-2 file:text-white hover:file:bg-indigo-500">
         </div>
-        <button class="rounded-xl bg-indigo-600 px-5 py-3 font-medium hover:bg-indigo-500">アップロードして抽出開始</button>
+        <button class="rounded-xl bg-indigo-600 px-5 py-3 font-medium hover:bg-indigo-500">タイトル選択開始</button>
       </form>
     </section>
 
@@ -131,17 +128,6 @@
               class="w-full rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-zinc-100 outline-none focus:border-indigo-500"
             >
           </div>
-
-          <div>
-            <label for="deepl-plan" class="mb-2 block text-sm text-zinc-300">プラン</label>
-            <select
-              id="deepl-plan"
-              class="w-full rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-zinc-100 outline-none focus:border-indigo-500"
-            >
-              <option value="free">Free</option>
-              <option value="pro">Pro</option>
-            </select>
-          </div>
         </div>
 
         <div class="mt-6 flex justify-end gap-2">
@@ -175,15 +161,10 @@
 
         const data = await res.json();
         const apiKeyInput = document.getElementById("deepl-api-key");
-        const planSelect = document.getElementById("deepl-plan");
         const banner = document.getElementById("deepl-banner");
 
         if (apiKeyInput) {
           apiKeyInput.value = data.api_key || "";
-        }
-
-        if (planSelect) {
-          planSelect.value = data.plan || "free";
         }
 
         if (banner) {
@@ -208,22 +189,27 @@
 
     async function saveDeeplSettings() {
       const api_key = document.getElementById("deepl-api-key").value.trim();
-      const plan = document.getElementById("deepl-plan").value;
 
       try {
         const res = await fetch("/settings/deepl", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ api_key, plan })
+          body: JSON.stringify({ api_key})
         });
 
-        if (!res.ok) {
+        const data = await res.json();
+
+        if (!res.ok || !data.ok) {
           alert("DeepL設定の保存に失敗しました。");
           return;
         }
 
+        alert(data.message || "保存しました。アプリを再起動します。");
         closeDeeplModal();
-        await loadDeeplSettings();
+
+        setTimeout(() => {
+          window.location.href = "/";
+        }, 1500);
       } catch (error) {
         console.error("DeepL設定の保存に失敗しました", error);
         alert("DeepL設定の保存に失敗しました。");

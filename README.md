@@ -1,52 +1,98 @@
-# IGAMAGI Reader rebuild
+# IGAMAGI
 
-半手動で論文PDFを読み進めるための Flask アプリです。
+論文を「行き来せずに読む」ための半自動翻訳ビューア
+
+---
+
+## 特徴
+
+- PDFをそのまま取り込み
+- 段落・図を手動で正確に抽出
+- DeepLで高精度翻訳
+- 文単位での対訳表示
+- キーボード操作で高速読解
+- 読書位置を自動保存
+- 図表と本文を同時に確認
+- Free / Pro APIを自動判別
+
+DeepLとPDFを行き来する必要がなくなります
+
+---
+
+## こんな人におすすめ
+
+- 論文を読むのがつらい
+- DeepLとPDFを行き来している
+- 英語を勉強しながら論文を読みたい
+- 研究者・学生
+
+---
 
 ## できること
 
-- PDFアップロード
-- PyMuPDF による line 抽出
-- PDFページプレビュー表示
-- line クリック / ドラッグで paragraph を手動指定
-- paragraph を保存後、spaCy(sentencizer) で文分割
-- DeepL API で文ごとに翻訳
-- 左ペインに English / Japanese を交互表示
-- figure 本体はドラッグで bbox 指定
-- figure caption は line 選択で指定
-- setup 上で使用済み line を色分け表示
-- 右ペインに figure 画像と caption を表示
+- 段落ごとに翻訳して整理
+- 文単位で日本語の表示・非表示を切り替え
+- キーボード操作で文送り
+- 図とキャプションの管理
 
-## セットアップ
+---
 
-```bash
-python -m venv .venv
+## インストール方法
 
-# Windows PowerShell
-.\.venv\Scripts\Activate.ps1
+1. GitHubで「IGAMAGI」を開く  
+2. 右側の「Releases」から最新版をダウンロード  
+3. ZIPファイルを解凍  
+4. フォルダ内の `.exe` ファイルをダブルクリック  
 
-# または cmd
-.\.venv\Scripts\activate.bat
+これだけで起動できます
 
-pip install -r requirements.txt
-python tools/init_db.py
-python app.py
+---
 
-## DeepL を使う場合
+## DeepL API設定
 
-環境変数を設定してください。
+1. DeepLでアカウントを作成  
+2. APIキーを取得  
+3. アプリに貼り付けて保存  
 
-```bash
-set DEEPL_AUTH_KEY=your_key_here
-```
+※ Free / Pro は自動判別されます  
+※ APIキーは各自で取得してください
 
-PowerShell の場合:
+---
 
-```powershell
-$env:DEEPL_AUTH_KEY="your_key_here"
-```
+## 操作方法
 
-## 補足
+| キー | 動作 |
+|------|------|
+| W | 前の文 |
+| S | 次の文 |
+| D | 日本語を開く |
+| A | 日本語を閉じる |
 
-- spaCy は `spacy.blank("en") + sentencizer` を使っているため、追加モデル不要です。
-- 図表参照 `sentence_figure_refs` のUI登録画面はまだ最小です。APIは用意済みです。
-- 初期実装なので認証・排他制御・履歴管理は未対応です。
+### マウス操作
+
+- ドラッグ：範囲選択
+- クリック：個別選択
+- Shift + ドラッグ：図の選択
+
+---
+
+## コンセプト
+
+英語が苦手でも  
+「流れを止めずに読む」ことを最優先に設計しています
+
+---
+
+## 注意
+
+- DeepL APIキーが必要です
+- Freeプランは文字数制限があります
+- PDFの構造によっては手動調整が必要です
+
+---
+
+## 今後の予定
+
+- 自動段落抽出の精度向上
+- UIの改善
+- OCR対応
